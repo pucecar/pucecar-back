@@ -3,27 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <title>Verificación PUCECar</title>
-  <style>
-    body { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: Arial; }
-    button { padding: 12px 24px; font-size: 18px; cursor: pointer; }
-  </style>
 </head>
 <body>
-  <h1>Bienvenido a PUCECar</h1>
-  <p>Haz click en el botón para validar tu correo:</p>
-  <button id="validarBtn">Verificar en Firebase</button>
+  <h1>Verificación de correo</h1>
+  <p>Presiona el botón para completar la validación en Firebase:</p>
+  <button id="verificarBtn">Verificar correo</button>
 
   <script>
-    const uid = new URLSearchParams(window.location.search).get('uid');
-    const email = new URLSearchParams(window.location.search).get('email');
+    // Reemplaza este link con tu Firebase OOB o endpoint dinámico si lo necesitas
+    const firebaseLink = "https://www.firebase.com/tu-link-de-verificacion";
 
-    document.getElementById('validarBtn').addEventListener('click', () => {
-      if (!uid || !email) {
-        alert('Faltan datos para la verificación');
-        return;
-      }
-      // Aquí armamos el link de Firebase (ejemplo)
-      const firebaseLink = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink?uid=${uid}&email=${email}`;
+    document.getElementById("verificarBtn").addEventListener("click", () => {
       window.location.href = firebaseLink;
     });
   </script>
