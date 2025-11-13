@@ -12,9 +12,7 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public'))); // opcional
 
-// ----------------------------
-// Directorio y archivo para almacenar usuarios
-// ----------------------------
+// Directorio y archivo de usuarios
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_PATH = path.join(DATA_DIR, 'usuarios.json');
 
@@ -24,16 +22,12 @@ if (!fs.readJsonSync(DATA_PATH, { throws: false })) {
   fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
 }
 
-// ----------------------------
-// Endpoint POST /registro
-// ----------------------------
+// POST /registro
 app.post('/registro', async (req, res) => {
   try {
     const { uid, nombre, apellido, email } = req.body;
 
-    if (!uid || !email) {
-      return res.status(400).json({ ok: false, mensaje: 'Faltan parámetros obligatorios' });
-    }
+    if (!uid || !email) return res.status(400).json({ ok: false, mensaje: 'Faltan parámetros obligatorios' });
 
     let usuarios = await fs.readJson(DATA_PATH);
 
@@ -52,9 +46,7 @@ app.post('/registro', async (req, res) => {
   }
 });
 
-// ----------------------------
-// Endpoint GET /usuarios
-// ----------------------------
+// GET /usuarios
 app.get('/usuarios', async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
@@ -65,9 +57,7 @@ app.get('/usuarios', async (req, res) => {
   }
 });
 
-// ----------------------------
 // Página principal con botón de verificación
-// ----------------------------
 app.get('/', async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
@@ -77,7 +67,8 @@ app.get('/', async (req, res) => {
     if (ultimo) {
       const oobCode = await obtenerUltimoOobCode();
       if (oobCode) {
-        linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=${oobCode}&continueUrl=${encodeURIComponent('https://pucecar-back.onrender.com/')}`;
+        const API_KEY = 'AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI'; 
+        linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=${oobCode}&apiKey=${API_KEY}&lang=es-419`;
       }
     }
 
@@ -87,22 +78,47 @@ app.get('/', async (req, res) => {
     <head>
       <meta charset="UTF-8">
       <title>Verificación PUCECar</title>
+      <style>
+        body {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          text-align: center;
+          font-family: Arial, sans-serif;
+        }
+        button {
+          padding: 12px 24px;
+          font-size: 16px;
+          cursor: pointer;
+          margin-top: 16px;
+        }
+        p { font-size: 18px; }
+        div { border: 1px solid #ccc; padding: 32px; border-radius: 8px; box-shadow: 0 0 12px rgba(0,0,0,0.1); }
+      </style>
     </head>
     <body>
-      <h1>Verificación de correo</h1>
-      ${ultimo ? `
-        <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
-        <button id="verificarBtn">Verificar correo</button>
-        <script>
-          const linkFirebase = "${linkFirebase}";
-          document.getElementById("verificarBtn").addEventListener("click", () => {
-            window.location.href = linkFirebase;
-          });
-        </script>
-      ` : '<p>No hay usuarios registrados aún.</p>'}
+      <div>
+        <h1>Verificación de correo</h1>
+        ${ultimo ? `
+          <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
+          <button id="verificarBtn">Verificar correo</button>
+          <script>
+            const linkFirebase = "${linkFirebase}";
+            document.getElementById("verificarBtn").addEventListener("click", () => {
+              if(linkFirebase === "#") {
+                alert("No se encontró el link de verificación aún.");
+              } else {
+                window.location.href = linkFirebase;
+              }
+            });
+          </script>
+        ` : '<p>No hay usuarios registrados aún.</p>'}
+      </div>
     </body>
     </html>
     `;
+
     res.send(html);
   } catch (error) {
     console.error('Error en GET /:', error);
