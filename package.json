@@ -12,6 +12,7 @@
     "express": "^4.21.2",
     "fs-extra": "^11.3.2",
     "googleapis": "^166.0.0",
+    "imap-simple": "^5.0.0",
     "nodemailer": "^7.0.10"
   }
 }
