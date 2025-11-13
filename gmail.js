@@ -40,11 +40,13 @@ async function leerCorreosEnviados() {
  * Extraer oobCode del cuerpo del correo
  */
 function extraerOobCode(cuerpoCorreo) {
-  const regex = /oobCode=([A-Za-z0-9-_]+)/;
-  const match = cuerpoCorreo.match(regex);
-  if (match && match[1]) return match[1];
-  return null;
+  const regex = /oobCode=([^&]+)/;
+  const match = correo.match(regex);
+  if (match && match[1]) {
+    const oobCode = match[1];
+    console.log('oobCode capturado:', oobCode);
 }
+
 
 /**
  * Obtener el último oobCode disponible
