@@ -22,6 +22,13 @@ if (!fs.readJsonSync(DATA_PATH, { throws: false })) {
 }
 
 // ----------------------------
+// Servir index.html con el botón de verificación
+// ----------------------------
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// ----------------------------
 // Endpoint POST /registro
 // Recibe datos desde la app y los guarda
 // ----------------------------
