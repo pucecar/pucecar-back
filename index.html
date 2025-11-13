@@ -1,68 +1,33 @@
+const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <title>Verificación PUCECar</title>
   <style>
-    /* Aplicamos un contenedor que ocupa toda la pantalla y centra su contenido */
-    body, html {
-      height: 100%;
-      margin: 0;
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center; /* centrado horizontal */
-      align-items: center;     /* centrado vertical */
-      background-color: #f5f5f5;
-    }
-
-    .container {
-      text-align: center;
-      background: white;
-      padding: 30px 50px;
-      border-radius: 10px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    }
-
-    h1 {
-      margin-bottom: 20px;
-      color: #333;
-    }
-
-    p {
-      margin-bottom: 25px;
-      color: #555;
-    }
-
-    button {
-      padding: 12px 25px;
-      font-size: 16px;
-      background-color: #1976d2;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-
-    button:hover {
-      background-color: #135ba1;
-    }
+    body { display: flex; justify-content: center; align-items: center; height: 100vh; text-align: center; font-family: Arial, sans-serif; }
+    button { padding: 12px 24px; font-size: 16px; cursor: pointer; margin-top: 16px; }
+    p { font-size: 18px; }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div>
     <h1>Verificación de correo</h1>
-    <p>Presiona el botón para completar la validación en Firebase:</p>
-    <button id="verificarBtn">Verificar correo</button>
+    ${ultimo ? `
+      <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
+      <button id="verificarBtn">Verificar correo</button>
+      <script>
+        const linkFirebase = "${linkFirebase}";
+        document.getElementById("verificarBtn").addEventListener("click", () => {
+          if(linkFirebase === "#") {
+            alert("No se encontró el link de verificación aún.");
+          } else {
+            window.location.href = linkFirebase;
+          }
+        });
+      </script>
+    ` : '<p>No hay usuarios registrados aún.</p>'}
   </div>
-
-  <script>
-    // Reemplaza este link con tu Firebase OOB o endpoint dinámico
-    const firebaseLink = "https://www.firebase.com/tu-link-de-verificacion";
-
-    document.getElementById("verificarBtn").addEventListener("click", () => {
-      window.location.href = firebaseLink;
-    });
-  </script>
 </body>
 </html>
+`;
