@@ -5,13 +5,57 @@ const html = `
   <meta charset="UTF-8">
   <title>Verificación PUCECar</title>
   <style>
-    body { display: flex; justify-content: center; align-items: center; height: 100vh; text-align: center; font-family: Arial, sans-serif; }
-    button { padding: 12px 24px; font-size: 16px; cursor: pointer; margin-top: 16px; }
-    p { font-size: 18px; }
+    /* Reset básico */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #4a90e2, #50e3c2);
+      color: #fff;
+      text-align: center;
+    }
+
+    .container {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      max-width: 400px;
+      width: 90%;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+
+    p {
+      font-size: 18px;
+      margin-bottom: 30px;
+    }
+
+    button {
+      background-color: #ffca28;
+      border: none;
+      color: #333;
+      padding: 14px 28px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background-color: #ffc107;
+    }
   </style>
 </head>
 <body>
-  <div>
+  <div class="container">
     <h1>Verificación de correo</h1>
     ${ultimo ? `
       <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
