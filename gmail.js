@@ -14,15 +14,13 @@ const config = {
 };
 
 /**
- * Leer últimos correos de la carpeta Sent
+ * Leer últimos correos enviados (Sent)
  */
 async function leerCorreosEnviados() {
   const connection = await imaps.connect({ imap: config.imap });
-  
-  // Abrir carpeta Sent
   await connection.openBox('[Gmail]/Sent Mail'); // o '[Gmail]/Enviados'
 
-  const searchCriteria = [['FROM', config.imap.user]];
+  const searchCriteria = [['FROM', config.imap.user]]; // correos enviados desde este Gmail
   const fetchOptions = { bodies: ['HEADER', 'TEXT'], markSeen: false };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
@@ -40,13 +38,12 @@ async function leerCorreosEnviados() {
  * Extraer oobCode del cuerpo del correo
  */
 function extraerOobCode(cuerpoCorreo) {
-  const regex = /oobCode=([^&]+)/;
-  const match = correo.match(regex);
-  if (match && match[1]) {
-    const oobCode = match[1];
-    console.log('oobCode capturado:', oobCode);
+  // Tomamos el parámetro oobCode hasta &apiKey
+  const regex = /oobCode=([A-Za-z0-9-_]+)&apiKey=/;
+  const match = cuerpoCorreo.match(regex);
+  if (match && match[1]) return match[1];
+  return null;
 }
-
 
 /**
  * Obtener el último oobCode disponible
