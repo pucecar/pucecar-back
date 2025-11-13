@@ -58,19 +58,31 @@ app.get('/usuarios', async (req, res) => {
 });
 
 // Página principal con botón de verificación
+
 app.get('/', async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
     const ultimo = usuarios.length ? usuarios[usuarios.length - 1] : null;
 
     let linkFirebase = '#';
+
     if (ultimo) {
       const oobCode = await obtenerUltimoOobCode();
+
+      console.log("OOB CODE OBTENIDO:", oobCode); // DEBUG 1
+
       if (oobCode) {
-        const API_KEY = 'AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI'; 
-        linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=${oobCode}&apiKey=${API_KEY}&lang=es-419`;
+        const API_KEY = 'AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI';
+
+        linkFirebase =
+          `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail` +
+          `&oobCode=${oobCode}` +
+          `&apiKey=${API_KEY}` +
+          `&lang=es-419`;
       }
     }
+
+    console.log("LINK FINAL GENERADO:", linkFirebase); // DEBUG 2
 
     const html = `
     <!DOCTYPE html>
@@ -86,23 +98,42 @@ app.get('/', async (req, res) => {
           height: 100vh;
           text-align: center;
           font-family: Arial, sans-serif;
+          background: #f5f5f5;
+        }
+        .card {
+          background: white;
+          padding: 32px;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          width: 360px;
         }
         button {
           padding: 12px 24px;
           font-size: 16px;
           cursor: pointer;
           margin-top: 16px;
+          background: #4A90E2;
+          color: white;
+          border: none;
+          border-radius: 8px;
         }
+        button:hover { background: #3b7dc5; }
         p { font-size: 18px; }
-        div { border: 1px solid #ccc; padding: 32px; border-radius: 8px; box-shadow: 0 0 12px rgba(0,0,0,0.1); }
       </style>
     </head>
     <body>
-      <div>
+      <div class="card">
         <h1>Verificación de correo</h1>
+
         ${ultimo ? `
           <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
           <button id="verificarBtn">Verificar correo</button>
+
+          <!-- DEBUG LINK EN PANTALLA -->
+          <p style="font-size:14px; color:gray; word-break:break-all;">
+            DEBUG LINK:<br>${linkFirebase}
+          </p>
+
           <script>
             const linkFirebase = "${linkFirebase}";
             document.getElementById("verificarBtn").addEventListener("click", () => {
@@ -114,6 +145,7 @@ app.get('/', async (req, res) => {
             });
           </script>
         ` : '<p>No hay usuarios registrados aún.</p>'}
+
       </div>
     </body>
     </html>
@@ -126,6 +158,3 @@ app.get('/', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-});
