@@ -3,15 +3,18 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs-extra');
 const path = require('path');
+const { obtenerUltimoOobCode } = require('./gmail');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public'))); // carpeta para index.html
+app.use(express.static(path.join(__dirname, 'public'))); // opcional
 
+// ----------------------------
 // Directorio y archivo para almacenar usuarios
+// ----------------------------
 const DATA_DIR = path.join(__dirname, 'data');
 const DATA_PATH = path.join(DATA_DIR, 'usuarios.json');
 
@@ -23,7 +26,6 @@ if (!fs.readJsonSync(DATA_PATH, { throws: false })) {
 
 // ----------------------------
 // Endpoint POST /registro
-// Recibe datos desde la app y los guarda
 // ----------------------------
 app.post('/registro', async (req, res) => {
   try {
@@ -52,7 +54,6 @@ app.post('/registro', async (req, res) => {
 
 // ----------------------------
 // Endpoint GET /usuarios
-// Devuelve todos los usuarios
 // ----------------------------
 app.get('/usuarios', async (req, res) => {
   try {
@@ -65,42 +66,48 @@ app.get('/usuarios', async (req, res) => {
 });
 
 // ----------------------------
-// Servir la página con el botón de validación
+// Página principal con botón de verificación
 // ----------------------------
 app.get('/', async (req, res) => {
-  // Tomamos el último usuario registrado para ejemplo
-  const usuarios = await fs.readJson(DATA_PATH);
-  const ultimo = usuarios.length ? usuarios[usuarios.length - 1] : null;
+  try {
+    const usuarios = await fs.readJson(DATA_PATH);
+    const ultimo = usuarios.length ? usuarios[usuarios.length - 1] : null;
 
-  // Página HTML dinámica
-  const html = `
-  <!DOCTYPE html>
-  <html lang="es">
-  <head>
-    <meta charset="UTF-8">
-    <title>Verificación PUCECar</title>
-  </head>
-  <body>
-    <h1>Verificación de correo</h1>
-    ${ultimo ? `
-      <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
-      <button id="verificarBtn">Verificar correo</button>
-      <script>
-        const uid = "${ultimo.uid}";
-        const email = "${ultimo.email}";
-        const firebaseBase = "https://pucecar-ff3e3.firebaseapp.com/__/auth/action";
-        // Construir link con parámetros
-        const linkFirebase = \`\${firebaseBase}?mode=verifyEmail&oobCode=\${uid}&continueUrl=\${encodeURIComponent('https://pucecar-back.onrender.com/')}\`;
+    let linkFirebase = '#';
+    if (ultimo) {
+      const oobCode = await obtenerUltimoOobCode();
+      if (oobCode) {
+        linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=${oobCode}&continueUrl=${encodeURIComponent('https://pucecar-back.onrender.com/')}`;
+      }
+    }
 
-        document.getElementById("verificarBtn").addEventListener("click", () => {
-          window.location.href = linkFirebase;
-        });
-      </script>
-    ` : '<p>No hay usuarios registrados aún.</p>'}
-  </body>
-  </html>
-  `;
-  res.send(html);
+    const html = `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Verificación PUCECar</title>
+    </head>
+    <body>
+      <h1>Verificación de correo</h1>
+      ${ultimo ? `
+        <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
+        <button id="verificarBtn">Verificar correo</button>
+        <script>
+          const linkFirebase = "${linkFirebase}";
+          document.getElementById("verificarBtn").addEventListener("click", () => {
+            window.location.href = linkFirebase;
+          });
+        </script>
+      ` : '<p>No hay usuarios registrados aún.</p>'}
+    </body>
+    </html>
+    `;
+    res.send(html);
+  } catch (error) {
+    console.error('Error en GET /:', error);
+    res.status(500).send('<p>Error al cargar la página</p>');
+  }
 });
 
 app.listen(PORT, () => {
