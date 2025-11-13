@@ -60,6 +60,7 @@ const html = `
     ${ultimo ? `
       <p>Usuario: ${ultimo.nombre} ${ultimo.apellido} (${ultimo.email})</p>
       <button id="verificarBtn">Verificar correo</button>
+      <p style="font-size:14px; color:gray;">DEBUG LINK:<br>${linkFirebase}</p>
       <script>
         const linkFirebase = "${linkFirebase}";
         document.getElementById("verificarBtn").addEventListener("click", () => {
