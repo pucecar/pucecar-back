@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Verificación PUCECar</title>
+  <style>
+    body { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: Arial; }
+    button { padding: 12px 24px; font-size: 18px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Bienvenido a PUCECar</h1>
+  <p>Haz click en el botón para validar tu correo:</p>
+  <button id="validarBtn">Verificar en Firebase</button>
+
+  <script>
+    const uid = new URLSearchParams(window.location.search).get('uid');
+    const email = new URLSearchParams(window.location.search).get('email');
+
+    document.getElementById('validarBtn').addEventListener('click', () => {
+      if (!uid || !email) {
+        alert('Faltan datos para la verificación');
+        return;
+      }
+      // Aquí armamos el link de Firebase (ejemplo)
+      const firebaseLink = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink?uid=${uid}&email=${email}`;
+      window.location.href = firebaseLink;
+    });
+  </script>
+</body>
+</html>
