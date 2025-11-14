@@ -1,4 +1,4 @@
-//server.js
+// server.js
 // ======================================================
 // MANEJO DE ERRORES GLOBALES PARA RENDER
 // ======================================================
@@ -68,29 +68,26 @@ app.post("/registro", async (req, res) => {
 
     let usuarios = await fs.readJson(DATA_PATH);
 
-    const existe = usuarios.find((u) => u.uid === uid || u.email === email);
-    if (existe) {
-      return res
-        .status(200)
-        .json({ ok: true, mensaje: "Usuario ya registrado", usuario: existe });
+    // Verificar si ya existe usuario por uid o email
+    let usuario = usuarios.find(u => u.uid === uid || u.email === email);
+
+    if (!usuario) {
+      // Nuevo usuario
+      usuario = { uid, nombre, apellido, email, oobCode: null };
+      usuarios.push(usuario);
+      await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
     }
 
-    const nuevoUsuario = { uid, nombre, apellido, email, oobCode: null };
-    usuarios.push(nuevoUsuario);
-
-    // Guardar en JSON inmediatamente
-    await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
-
-    // Intentar obtener el último oobCode del correo
+    // Obtener último oobCode del correo y actualizar
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
       console.log(`OOB CODE obtenido para ${email}:`, oobCode);
 
-      // Actualizar usuario con el oobCode
-      const index = usuarios.findIndex(u => u.uid === uid);
-      if (index >= 0) {
+      const index = usuarios.findIndex(u => u.uid === usuario.uid);
+      if (index >= 0 && oobCode) {
         usuarios[index].oobCode = oobCode;
         await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
+        usuario.oobCode = oobCode;
       }
     } catch (err) {
       console.error(`No se pudo obtener oobCode para ${email}:`, err.message);
@@ -99,7 +96,7 @@ app.post("/registro", async (req, res) => {
     return res.json({
       ok: true,
       mensaje: "Usuario registrado correctamente",
-      usuario: nuevoUsuario,
+      usuario,
     });
   } catch (error) {
     console.error("Error en POST /registro:", error);
@@ -119,17 +116,24 @@ app.get("/usuarios", async (req, res) => {
 });
 
 // GET / (Página principal con link de verificación)
+// Ahora recibe query ?uid=xxxx o ?email=xxxx para mostrar solo su link
 app.get("/", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
-    const ultimo = usuarios.length ? usuarios[usuarios.length - 1] : null;
+    const { uid, email } = req.query;
+
+    const usuario = uid
+      ? usuarios.find(u => u.uid === uid)
+      : email
+      ? usuarios.find(u => u.email === email)
+      : null;
 
     let linkFirebase = "#";
 
-    if (ultimo && ultimo.oobCode) {
+    if (usuario && usuario.oobCode) {
       const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
       linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
-        `oobCode=${encodeURIComponent(ultimo.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
+        `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
     }
 
     console.log("LINK FINAL GENERADO:", linkFirebase);
@@ -137,48 +141,48 @@ app.get("/", async (req, res) => {
     const linkSanitized = linkFirebase.replace(/"/g, "&quot;");
 
     const html = `
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
-      <meta charset="UTF-8">
-      <title>Verificación PUCECar</title>
-      <style>
-        body { display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background: #eef2f5; }
-        .card { background: white; padding: 32px; width: 380px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); text-align: center; }
-        button { padding: 12px 20px; font-size: 16px; background: #0077ff; color: white; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
-        button:hover { background: #005fd1; }
-        h1 { margin-bottom: 12px; }
-        p { font-size: 17px; }
-        .debug { font-size: 12px; margin-top: 20px; color: #777; word-break: break-all; }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h1>Verificación de correo</h1>
-        ${
-          ultimo
-            ? `
-          <p><strong>Usuario:</strong><br>${ultimo.nombre} ${ultimo.apellido}<br>${ultimo.email}</p>
-          <button id="verificarBtn">Verificar correo</button>
-          <div class="debug">
-            <b>DEBUG LINK:</b><br>${linkSanitized}
-          </div>
-          <script>
-            const linkFirebase = "${linkSanitized}";
-            document.getElementById("verificarBtn").addEventListener("click", () => {
-              if (linkFirebase === "#") {
-                alert("No se encontró el link de verificación aún.");
-              } else {
-                window.location.href = linkFirebase;
-              }
-            });
-          </script>
-        `
-            : "<p>No hay usuarios registrados aún.</p>"
-        }
-      </div>
-    </body>
-    </html>
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Verificación PUCECar</title>
+        <style>
+          body { display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background: #eef2f5; }
+          .card { background: white; padding: 32px; width: 380px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); text-align: center; }
+          button { padding: 12px 20px; font-size: 16px; background: #0077ff; color: white; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
+          button:hover { background: #005fd1; }
+          h1 { margin-bottom: 12px; }
+          p { font-size: 17px; }
+          .debug { font-size: 12px; margin-top: 20px; color: #777; word-break: break-all; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>Verificación de correo</h1>
+          ${
+            usuario
+              ? `
+            <p><strong>Usuario:</strong><br>${usuario.nombre} ${usuario.apellido}<br>${usuario.email}</p>
+            <button id="verificarBtn">Verificar correo</button>
+            <div class="debug">
+              <b>DEBUG LINK:</b><br>${linkSanitized}
+            </div>
+            <script>
+              const linkFirebase = "${linkSanitized}";
+              document.getElementById("verificarBtn").addEventListener("click", () => {
+                if (linkFirebase === "#") {
+                  alert("No se encontró el link de verificación aún.");
+                } else {
+                  window.location.href = linkFirebase;
+                }
+              });
+            </script>
+          `
+              : "<p>No se encontró usuario.</p>"
+          }
+        </div>
+      </body>
+      </html>
     `;
 
     res.send(html);

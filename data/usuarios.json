@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "uid": "U1",
+    "nombre": "Esteban Juan",
+    "apellido": "López Guzmán",
+    "email": "ejlopez@puce.edu.ec",
+    "oobCode": null
+  },
+  {
+    "uid": "U2",
+    "nombre": "María Fernanda",
+    "apellido": "Pérez Soto",
+    "email": "mf_perez@puce.edu.ec",
+    "oobCode": null
+  },
+  {
+    "uid": "U3",
+    "nombre": "Carlos Andrés",
+    "apellido": "Gómez Ruiz",
+    "email": "cagomez@puce.edu.ec",
+    "oobCode": null
+  }
+]
+
