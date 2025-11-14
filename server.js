@@ -81,6 +81,9 @@ app.post("/registro", async (req, res) => {
     // Obtener último oobCode del correo y actualizar
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
+      console.log("=== Antes de obtener OOB CODE ===");
+      console.log("Usuarios actuales:", usuarios);
+      console.log("Email a buscar:", email);
       console.log(`OOB CODE obtenido para ${email}:`, oobCode);
 
       const index = usuarios.findIndex(u => u.uid === usuario.uid);
