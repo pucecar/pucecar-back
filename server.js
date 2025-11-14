@@ -57,9 +57,8 @@ try {
 // POST /registro
 app.post("/registro", async (req, res) => {
   try {
-
     console.log("==> NUEVO REGISTRO DESDE APP:", req.body); 
-    
+
     const { uid, nombre, apellido, email } = req.body;
     if (!uid || !email) {
       return res
@@ -76,9 +75,26 @@ app.post("/registro", async (req, res) => {
         .json({ ok: true, mensaje: "Usuario ya registrado", usuario: existe });
     }
 
-    const nuevoUsuario = { uid, nombre, apellido, email };
+    const nuevoUsuario = { uid, nombre, apellido, email, oobCode: null };
     usuarios.push(nuevoUsuario);
     await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
+
+    // =========================================================
+    // BUSCAR EN GMAIL EL OOB CODE DEL NUEVO USUARIO
+    // =========================================================
+    try {
+      const oobCode = await obtenerUltimoOobCodePorEmail(email);
+      console.log(`OOB CODE OBTENIDO PARA ${email}:`, oobCode);
+
+      // Guardar el oobCode en el usuario en el JSON
+      const index = usuarios.findIndex(u => u.email === email);
+      if (index >= 0) {
+        usuarios[index].oobCode = oobCode;
+        await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
+      }
+    } catch (gmailError) {
+      console.error(`No se pudo obtener oobCode para ${email}:`, gmailError.message);
+    }
 
     return res.json({
       ok: true,
@@ -124,6 +140,7 @@ app.post("/sync-usuarios", async (req, res) => {
       rol: data.rol || "pasajero",
       fechaRegistro: data.fechaRegistro || "",
       verificado: data.verificado || false,
+      oobCode: data.oobCode || null
     }));
 
     nuevos.forEach((nuevo) => {
@@ -158,21 +175,13 @@ app.get("/", async (req, res) => {
 
     let linkFirebase = "#";
 
-    if (ultimo) {
-      // Pasar el email del último usuario registrado
-      const oobCode = await obtenerUltimoOobCodePorEmail(ultimo.email);
-
-      console.log("OOB CODE OBTENIDO:", oobCode);
-
-      if (oobCode) {
-        const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-
-        linkFirebase =
-          `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail` +
-          `&oobCode=${encodeURIComponent(oobCode)}` +
-          `&apiKey=${API_KEY}` +
-          `&lang=es-419`;
-      }
+    if (ultimo && ultimo.oobCode) {
+      const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
+      linkFirebase =
+        `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail` +
+        `&oobCode=${encodeURIComponent(ultimo.oobCode)}` +
+        `&apiKey=${API_KEY}` +
+        `&lang=es-419`;
     }
 
     console.log("LINK FINAL GENERADO:", linkFirebase);
