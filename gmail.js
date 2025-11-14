@@ -47,10 +47,10 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 
 /**
  * Extraer oobCode de un correo (body + headers)
+ * Regex robusta: captura todo después de 'oobCode=' hasta '&apiKey'
  */
 function extraerOobCode(correo) {
-  const texto = (correo.body || '') + JSON.stringify(correo.headers || {});
-  // Regex más robusta: captura cualquier carácter válido de Firebase hasta &apiKey
+  const texto = correo.body || '';
   const match = texto.match(/oobCode=([A-Za-z0-9_-]+)&apiKey/);
   return match ? match[1] : null;
 }
