@@ -66,6 +66,7 @@ app.post("/registro", async (req, res) => {
     }
 
     let usuarios = await fs.readJson(DATA_PATH);
+
     const existe = usuarios.find((u) => u.uid === uid || u.email === email);
     if (existe) {
       return res
@@ -73,26 +74,23 @@ app.post("/registro", async (req, res) => {
         .json({ ok: true, mensaje: "Usuario ya registrado", usuario: existe });
     }
 
-    // Crear nuevo usuario
     const nuevoUsuario = { uid, nombre, apellido, email, oobCode: null };
     usuarios.push(nuevoUsuario);
+
+    // Guardar en JSON inmediatamente
     await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
 
-    // ======================================================
-    // Intentar obtener el oobCode desde Gmail
-    // ======================================================
+    // Intentar obtener el último oobCode del correo
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
-      nuevoUsuario.oobCode = oobCode;
+      console.log(`OOB CODE obtenido para ${email}:`, oobCode);
 
-      // Actualizar usuarios.json
+      // Actualizar usuario con el oobCode
       const index = usuarios.findIndex(u => u.uid === uid);
       if (index >= 0) {
-        usuarios[index] = nuevoUsuario;
+        usuarios[index].oobCode = oobCode;
         await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
       }
-
-      console.log(`OOB CODE OBTENIDO PARA ${email}:`, oobCode);
     } catch (err) {
       console.error(`No se pudo obtener oobCode para ${email}:`, err.message);
     }
@@ -119,55 +117,6 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
-// POST /sync-usuarios
-app.post("/sync-usuarios", async (req, res) => {
-  try {
-    const usuariosFirebase = req.body;
-
-    if (!usuariosFirebase || typeof usuariosFirebase !== "object") {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "Formato inválido",
-      });
-    }
-
-    let usuariosLocal = await fs.readJson(DATA_PATH);
-
-    const nuevos = Object.entries(usuariosFirebase).map(([uid, data]) => ({
-      uid,
-      nombre: data.nombre || "",
-      apellido: data.apellido || "",
-      email: data.email || "",
-      rol: data.rol || "pasajero",
-      fechaRegistro: data.fechaRegistro || "",
-      verificado: data.verificado || false,
-      oobCode: data.oobCode || null,
-    }));
-
-    nuevos.forEach((nuevo) => {
-      const index = usuariosLocal.findIndex(
-        (u) => u.uid === nuevo.uid || u.email === nuevo.email
-      );
-      if (index >= 0) {
-        usuariosLocal[index] = { ...usuariosLocal[index], ...nuevo };
-      } else {
-        usuariosLocal.push(nuevo);
-      }
-    });
-
-    await fs.writeJson(DATA_PATH, usuariosLocal, { spaces: 2 });
-
-    res.json({
-      ok: true,
-      mensaje: "Usuarios sincronizados correctamente",
-      total: nuevos.length,
-    });
-  } catch (error) {
-    console.error("Error en POST /sync-usuarios:", error);
-    res.status(500).json({ ok: false, mensaje: "Error interno al sincronizar" });
-  }
-});
-
 // GET / (Página principal con link de verificación)
 app.get("/", async (req, res) => {
   try {
@@ -178,11 +127,8 @@ app.get("/", async (req, res) => {
 
     if (ultimo && ultimo.oobCode) {
       const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-      linkFirebase =
-        `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail` +
-        `&oobCode=${encodeURIComponent(ultimo.oobCode)}` +
-        `&apiKey=${API_KEY}` +
-        `&lang=es-419`;
+      linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
+        `oobCode=${encodeURIComponent(ultimo.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
     }
 
     console.log("LINK FINAL GENERADO:", linkFirebase);
