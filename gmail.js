@@ -22,30 +22,29 @@ async function leerUltimosCorreosEnviados(limit = 10) {
   await connection.openBox('[Gmail]/Sent Mail');
 
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: [''], struct: true };
+  const fetchOptions = { bodies: ['TEXT'], struct: true };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
   const ultimos = messages.slice(-limit);
 
-  // Función recursiva para obtener todo el texto plano
-  function obtenerTextoPlano(parts, msg) {
+  // Función recursiva para obtener todo el texto plano de multipart
+  function obtenerTextoPlano(parts) {
     let body = '';
     for (const part of parts) {
       if (Array.isArray(part.parts)) {
-        body += obtenerTextoPlano(part.parts, msg);
-      } else {
-        const partData = msg.parts.find(p => p.which === part.partID);
-        if (!partData) continue;
-        if (part.type === 'text' && part.subtype === 'plain' && part.disposition !== 'attachment') {
-          body += partData.body;
-        }
+        body += obtenerTextoPlano(part.parts);
+      } else if (part.type === 'text') {
+        body += part.body || '';
       }
     }
     return body;
   }
 
   const correos = ultimos.map(msg => {
-    const body = obtenerTextoPlano(msg.attributes.struct, msg);
+    let body = '';
+    if (msg.parts && msg.parts.length) {
+      body = obtenerTextoPlano(msg.parts);
+    }
 
     let headersObj = {};
     const headerPart = msg.parts.find(p => p.which === 'HEADER');
@@ -63,12 +62,9 @@ async function leerUltimosCorreosEnviados(limit = 10) {
  */
 function extraerOobCode(correo) {
   if (!correo.body) return null;
-
-  // Eliminar saltos de línea y buscar patrón
   const textoPlano = correo.body.replace(/\r?\n/g, '');
   const match = textoPlano.match(/mode=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
   if (match && match[1]) return match[1];
-
   return null;
 }
 
@@ -78,15 +74,13 @@ function extraerOobCode(correo) {
 function correoEsPara(correo, emailUsuario) {
   if (!correo.headers) return false;
 
-  // Gmail puede devolver 'to' o 'To'
   let toList = [];
   if (correo.headers.to) toList = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
   else if (correo.headers.To) toList = Array.isArray(correo.headers.To) ? correo.headers.To : [correo.headers.To];
 
-  // Convertir cualquier objeto a string y normalizar
+  // Convertir cualquier objeto a string
   toList = toList.map(t => (typeof t === 'string' ? t : t.value ? t.value.join(',') : ''));
 
-  // Buscar coincidencia con emailUsuario
   return toList.some(dest => dest.includes(emailUsuario));
 }
 
@@ -96,7 +90,7 @@ function correoEsPara(correo, emailUsuario) {
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
 
-  // Mostrar un poco de debug para verificar que se están leyendo los correos
+  // Logging de debug para verificar cuerpos
   console.log('Últimos correos obtenidos (primeros 200 caracteres):');
   correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
 
