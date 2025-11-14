@@ -1,5 +1,34 @@
 // gmail.js
 const imaps = require('imap-simple');
+const qp = require('quoted-printable'); 
+
+function generarLinkFirebaseDesdeCuerpo(bodies) {
+  const oobCodeRegex = /oobCode=([A-Za-z0-9-_]+)/; // Buscar oobCode en el cuerpo
+  const apiKey = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
+  const projectUrl = "https://pucecar-ff3e3.firebaseapp.com";
+  let oobCodeEncontrado = null;
+
+  for (const body of bodies) {
+    if (!body) continue;
+
+    // ==========================
+    // Decodificar quoted-printable
+    // ==========================
+    const decodedBody = qp.decode(body);
+
+    const match = decodedBody.match(oobCodeRegex);
+    if (match && match[1]) {
+      oobCodeEncontrado = match[1];
+      break; // Si encontramos uno, no seguimos buscando
+    }
+  }
+
+  if (!oobCodeEncontrado) return null;
+
+  // Armar el link completo
+  return `${projectUrl}/__/auth/action?mode=verifyEmail&oobCode=${oobCodeEncontrado}&apiKey=${apiKey}&lang=es-419`;
+}
+
 
 const config = {
   imap: {
@@ -97,16 +126,22 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 // ============================
 // EXTRAER OOB CODE Y ARMAR LINK FIREBASE
 // ============================
+
 function generarLinkFirebaseDesdeCuerpo(bodies) {
   const oobCodeRegex = /oobCode=([A-Za-z0-9-_]+)/; // Buscar oobCode en el cuerpo
-  const apiKey = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI"; // Tu API key de Firebase
-  const projectUrl = "https://pucecar-ff3e3.firebaseapp.com"; // Tu proyecto Firebase
+  const apiKey = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
+  const projectUrl = "https://pucecar-ff3e3.firebaseapp.com";
   let oobCodeEncontrado = null;
 
-  // Buscar en cada parte del cuerpo del correo
   for (const body of bodies) {
     if (!body) continue;
-    const match = body.match(oobCodeRegex);
+
+    // ==========================
+    // Decodificar quoted-printable
+    // ==========================
+    const decodedBody = qp.decode(body);
+
+    const match = decodedBody.match(oobCodeRegex);
     if (match && match[1]) {
       oobCodeEncontrado = match[1];
       break; // Si encontramos uno, no seguimos buscando
