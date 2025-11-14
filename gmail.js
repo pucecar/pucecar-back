@@ -15,6 +15,43 @@ const config = {
 };
 
 /**
+ * Decodificar parte base64 si existe
+ */
+function decodeBase64(body) {
+  try {
+    return Buffer.from(body, 'base64').toString('utf8');
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Extraer cuerpo REAL (HTML o texto) recorriendo TODA la estructura MIME
+ */
+function obtenerContenido(parts) {
+  let contenido = '';
+
+  for (const part of parts) {
+    // Si la parte tiene subpartes, recursivo
+    if (part.parts && Array.isArray(part.parts)) {
+      contenido += obtenerContenido(part.parts);
+    }
+
+    // Si es texto o HTML
+    if (part.body && part.body.length > 0) {
+      contenido += part.body;
+    }
+
+    // Caso IMAP: si el body viene en atributos
+    if (part.body && part.body.data) {
+      contenido += decodeBase64(part.body.data);
+    }
+  }
+
+  return contenido;
+}
+
+/**
  * Leer los últimos N correos enviados desde Gmail
  */
 async function leerUltimosCorreosEnviados(limit = 20) {
@@ -22,29 +59,28 @@ async function leerUltimosCorreosEnviados(limit = 20) {
   await connection.openBox('[Gmail]/Sent Mail');
 
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: [''], struct: true }; // '' para obtener todo
+  const fetchOptions = { bodies: [''], struct: true }; // '' devuelve todo MIME
   const messages = await connection.search(searchCriteria, fetchOptions);
   const ultimos = messages.slice(-limit);
 
-  function getBody(parts, msg) {
-    let body = '';
-    for (const part of parts) {
-      if (Array.isArray(part.parts)) {
-        body += getBody(part.parts, msg);
-      } else if (part.type === 'text' && part.subtype === 'plain') {
-        const partData = msg.parts.find(p => p.partID === part.partID);
-        if (partData && partData.body) body += partData.body;
-      }
-    }
-    return body;
-  }
-
   const correos = ultimos.map(msg => {
-    const body = msg.attributes.struct ? getBody(msg.attributes.struct, msg) : '';
+    // Obtener contenido HTML o texto del correo
+    const body = msg.attributes.struct
+      ? obtenerContenido(msg.attributes.struct)
+      : '';
+
+    // Quitar basura tipo <wbr>, saltos, etc.
+    const bodyLimpio = body
+      .replace(/=\r?\n/g, '')      // quita saltos de quoted-printable
+      .replace(/<wbr>/gi, '')      // quita wbr
+      .replace(/\r?\n/g, '')       // quita saltos
+      .trim();
+
     let headersObj = {};
     const headerPart = msg.parts.find(p => p.which === 'HEADER');
     if (headerPart) headersObj = headerPart.body;
-    return { body, headers: headersObj };
+
+    return { body: bodyLimpio, headers: headersObj };
   });
 
   await connection.end();
@@ -52,12 +88,13 @@ async function leerUltimosCorreosEnviados(limit = 20) {
 }
 
 /**
- * Extraer oobCode del correo
+ * Extraer oobCode del correo ANTES roto → AHORA acepta cualquier link
  */
 function extraerOobCode(correo) {
   if (!correo.body) return null;
-  const textoPlano = correo.body.replace(/\r?\n/g, '');
-  const match = textoPlano.match(/mode=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
+
+  // Buscar en todo el cuerpo cualquier coincidencia de oobCode=
+  const match = correo.body.match(/oobCode=([\w-]+)/);
   return match ? match[1] : null;
 }
 
@@ -80,7 +117,7 @@ function correoEsPara(correo, emailUsuario) {
  * Obtener el último oobCode válido para un email específico
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
-  const correos = await leerUltimosCorreosEnviados(50); // más correos por seguridad
+  const correos = await leerUltimosCorreosEnviados(50);
 
   console.log('Últimos correos obtenidos (primeros 200 caracteres):');
   correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
