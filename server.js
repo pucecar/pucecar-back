@@ -99,7 +99,52 @@ app.get("/usuarios", async (req, res) => {
     res.status(500).json({ ok: false, mensaje: "Error al leer los usuarios" });
   }
 });
+// ======================================================
+// POST /sync-usuarios   <-- NUEVO
+// ======================================================
+app.post("/sync-usuarios", async (req, res) => {
+  try {
+    const usuariosFirebase = req.body;
 
+    if (!usuariosFirebase || typeof usuariosFirebase !== "object") {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "Formato inválido",
+      });
+    }
+
+    let usuariosLocal = await fs.readJson(DATA_PATH);
+
+    // Convertimos Firebase (objeto) a array compatible con tu archivo local
+    const nuevos = Object.entries(usuariosFirebase).map(([uid, data]) => ({
+      uid,
+      nombre: data.nombre || "",
+      apellido: data.apellido || "",
+      email: data.email || "",
+      rol: data.rol || "pasajero",
+      fechaRegistro: data.fechaRegistro || "",
+      verificado: data.verificado || false,
+    }));
+
+    // Reemplaza todo lo local por lo de Firebase
+    usuariosLocal = nuevos;
+
+    await fs.writeJson(DATA_PATH, usuariosLocal, { spaces: 2 });
+
+    res.json({
+      ok: true,
+      mensaje: "Usuarios sincronizados correctamente",
+      total: nuevos.length,
+    });
+
+  } catch (error) {
+    console.error("Error en POST /sync-usuarios:", error);
+    res.status(500).json({
+      ok: false,
+      mensaje: "Error interno al sincronizar",
+    });
+  }
+});
 // ======================================================
 // PÁGINA PRINCIPAL CON LINK DE VERIFICACIÓN
 // ======================================================
