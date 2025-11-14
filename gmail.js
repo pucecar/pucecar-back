@@ -15,6 +15,24 @@ const config = {
 };
 
 /**
+ * Extraer oobCode completo del correo
+ */
+function extraerOobCode(correo) {
+  const texto = correo.body || '';
+  const match = texto.match(/=verifyEmail&oobCode=([^&]+)&apiKey/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Verifica si el correo fue enviado a un destinatario específico
+ */
+function correoEsPara(correo, emailUsuario) {
+  if (!correo.headers || !correo.headers.to) return false;
+  const toHeader = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
+  return toHeader.some(dest => dest.includes(emailUsuario));
+}
+
+/**
  * Leer los últimos N correos enviados desde Gmail
  */
 async function leerUltimosCorreosEnviados(limit = 10) {
@@ -46,28 +64,6 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 }
 
 /**
- * Extraer oobCode completo del correo
- */
-/**
-function extraerOobCode(correo) {
-  const texto = correo.body || '';
-  // Regex robusta: captura todo lo que sigue después de '=verifyEmail&oobCode=' hasta '&apiKey'
-  const match = texto.match(/=verifyEmail&oobCode=([^&]+)&apiKey/);
-  if (match && match[1]) return match[1];
-  return null;
-}
-
-
-/**
- * Verifica si el correo fue enviado a un destinatario específico
- */
-function correoEsPara(correo, emailUsuario) {
-  if (!correo.headers || !correo.headers.to) return false;
-  const toHeader = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
-  return toHeader.some(dest => dest.includes(emailUsuario));
-}
-
-/**
  * Obtener el último oobCode válido para un email específico
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
@@ -81,11 +77,10 @@ async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   }
 
   for (const correo of filtrados) {
-    const oobCode = extraerOobCode(correo);
+    const oobCode = extraerOobCode(correo); // Aquí ya está definida
     if (oobCode) return oobCode;
   }
 
-  // Si llegamos aquí, había correos pero ninguno tenía oobCode válido
   throw new Error(`No se pudo extraer oobCode válido para ${emailUsuario}`);
 }
 
