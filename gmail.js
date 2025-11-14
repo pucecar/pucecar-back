@@ -22,31 +22,35 @@ async function leerUltimosCorreosEnviados(limit = 10) {
   await connection.openBox('[Gmail]/Sent Mail');
 
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: ['HEADER', ''], struct: true }; // '' para obtener todo el body
+  const fetchOptions = { bodies: [''], struct: true };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
 
-  // Tomar solo los últimos N
   const ultimos = messages.slice(-limit);
 
-  const correos = ultimos.map(msg => {
+  function obtenerTextoPlano(parts, msg) {
     let body = '';
+    for (const part of parts) {
+      if (Array.isArray(part.parts)) {
+        body += obtenerTextoPlano(part.parts, msg);
+      } else {
+        const partData = msg.parts.find(p => p.which === part.partID);
+        if (!partData) continue;
+
+        if (part.type === 'text' && part.subtype === 'plain' && part.disposition !== 'attachment') {
+          body += partData.body;
+        }
+      }
+    }
+    return body;
+  }
+
+  const correos = ultimos.map(msg => {
+    const body = obtenerTextoPlano(msg.attributes.struct, msg);
+
     let headersObj = {};
-
-    // Recorrer todas las partes para obtener text/plain
-    const parts = imaps.getParts(msg.attributes.struct);
-    parts.forEach(part => {
-      const partData = msg.parts.find(p => p.which === part.partID);
-      if (!partData) return;
-
-      if (part.type === 'text' && part.subtype === 'plain' && part.disposition !== 'attachment') {
-        body += partData.body;
-      }
-
-      if (part.which === 'HEADER') {
-        headersObj = partData.body;
-      }
-    });
+    const headerPart = msg.parts.find(p => p.which === 'HEADER');
+    if (headerPart) headersObj = headerPart.body;
 
     return { body, headers: headersObj };
   });
@@ -61,7 +65,6 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 function extraerOobCode(correo) {
   if (!correo.body) return null;
 
-  // Eliminar saltos de línea y buscar el patrón
   const textoPlano = correo.body.replace(/\r?\n/g, '');
   const match = textoPlano.match(/mode=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
 
@@ -84,10 +87,9 @@ function correoEsPara(correo, emailUsuario) {
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
 
-  console.log('Últimos correos obtenidos (primeros 200 caracteres de cada uno):');
+  console.log('Últimos correos obtenidos (primeros 200 caracteres):');
   correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
 
-  // Filtrar correos enviados a este usuario y recorrer de más reciente a más antiguo
   const filtrados = correos.reverse().filter(c => correoEsPara(c, emailUsuario));
 
   if (!filtrados.length) {
@@ -103,11 +105,11 @@ async function obtenerUltimoOobCodePorEmail(emailUsuario) {
 }
 
 /**
- * Generar link de verificación de Firebase a partir del correo
+ * Generar link completo de verificación de Firebase usando tu dominio
  */
 async function generarLinkFirebase(emailUsuario, apiKey) {
   const oobCode = await obtenerUltimoOobCodePorEmail(emailUsuario);
-  const link = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink?oobCode=${oobCode}&apiKey=${apiKey}`;
+  const link = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=${oobCode}&apiKey=${apiKey}&lang=es-419`;
   return link;
 }
 
