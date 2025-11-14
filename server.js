@@ -163,7 +163,7 @@ app.get("/", async (req, res) => {
     let linkFirebase = "#";
 
     if (ultimo) {
-      // Obtener oobCode específico para el email del último usuario
+      // Pasar el email del último usuario registrado
       const oobCode = await obtenerUltimoOobCodePorEmail(ultimo.email);
 
       console.log("OOB CODE OBTENIDO:", oobCode);
@@ -233,11 +233,4 @@ app.get("/", async (req, res) => {
     console.error("Error en GET /:", error);
     res.status(500).send("<p>Error al cargar la página</p>");
   }
-});
-
-// ======================================================
-// INICIAR SERVIDOR
-// ======================================================
-app.listen(PORT, () => {
-  console.log(`Servidor iniciado en puerto ${PORT}`);
 });
