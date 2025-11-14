@@ -48,13 +48,15 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 /**
  * Extraer oobCode completo del correo
  */
+/**
 function extraerOobCode(correo) {
   const texto = correo.body || '';
-  // Regex: todo lo que sigue después de '=verifyEmail&oobCode=' hasta '&apiKey'
-  const match = texto.match(/=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
+  // Regex robusta: captura todo lo que sigue después de '=verifyEmail&oobCode=' hasta '&apiKey'
+  const match = texto.match(/=verifyEmail&oobCode=([^&]+)&apiKey/);
   if (match && match[1]) return match[1];
   return null;
 }
+
 
 /**
  * Verifica si el correo fue enviado a un destinatario específico
