@@ -17,8 +17,11 @@ const config = {
 // LEER CORREOS SIN ARMAR NADA
 // =======================
 async function leerUltimosCorreosEnviados(limit = 10) {
+  console.log("=== Conectando a Gmail para leer últimos correos enviados ===");
   const connection = await imaps.connect({ imap: config.imap });
   await connection.openBox('[Gmail]/Sent Mail');
+  console.log("Bandeja [Gmail]/Sent Mail abierta correctamente");
+
 
   const searchCriteria = ['ALL'];
   const fetchOptions = { bodies: [''], struct: true };
