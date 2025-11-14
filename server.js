@@ -17,7 +17,7 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const fs = require("fs-extra");
 const path = require("path");
-const { obtenerUltimoOobCode } = require("./gmail");
+const { obtenerUltimoOobCodePorEmail } = require("./gmail");
 
 // ======================================================
 // CONFIGURACIÓN
@@ -126,7 +126,9 @@ app.post("/sync-usuarios", async (req, res) => {
     }));
 
     nuevos.forEach((nuevo) => {
-      const index = usuariosLocal.findIndex((u) => u.uid === nuevo.uid || u.email === nuevo.email);
+      const index = usuariosLocal.findIndex(
+        (u) => u.uid === nuevo.uid || u.email === nuevo.email
+      );
       if (index >= 0) {
         usuariosLocal[index] = { ...usuariosLocal[index], ...nuevo };
       } else {
@@ -161,8 +163,8 @@ app.get("/", async (req, res) => {
     let linkFirebase = "#";
 
     if (ultimo) {
-      // Pasar email del último usuario
-      const oobCode = await obtenerUltimoOobCode(ultimo.email);
+      // Obtener oobCode específico para el email del último usuario
+      const oobCode = await obtenerUltimoOobCodePorEmail(ultimo.email);
 
       console.log("OOB CODE OBTENIDO:", oobCode);
 
