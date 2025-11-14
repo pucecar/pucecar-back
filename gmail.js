@@ -76,9 +76,18 @@ function extraerOobCode(correo) {
  * Verifica si el correo fue enviado a un destinatario específico
  */
 function correoEsPara(correo, emailUsuario) {
-  if (!correo.headers || !correo.headers.to) return false;
-  const toHeader = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
-  return toHeader.some(dest => dest.includes(emailUsuario));
+  if (!correo.headers) return false;
+
+  // Gmail puede devolver 'to' o 'To'
+  let toList = [];
+  if (correo.headers.to) toList = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
+  else if (correo.headers.To) toList = Array.isArray(correo.headers.To) ? correo.headers.To : [correo.headers.To];
+
+  // Convertir cualquier objeto a string y normalizar
+  toList = toList.map(t => (typeof t === 'string' ? t : t.value ? t.value.join(',') : ''));
+
+  // Buscar coincidencia con emailUsuario
+  return toList.some(dest => dest.includes(emailUsuario));
 }
 
 /**
@@ -86,6 +95,10 @@ function correoEsPara(correo, emailUsuario) {
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
+
+  // Mostrar un poco de debug para verificar que se están leyendo los correos
+  console.log('Últimos correos obtenidos (primeros 200 caracteres):');
+  correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
 
   const filtrados = correos.reverse().filter(c => correoEsPara(c, emailUsuario));
 
