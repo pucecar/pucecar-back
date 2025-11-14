@@ -2,11 +2,11 @@
 // MANEJO DE ERRORES GLOBALES PARA RENDER
 // ======================================================
 process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err);
+  console.error("Uncaught Exception:", err);
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("❌ Unhandled Rejection:", reason);
+  console.error("Unhandled Rejection:", reason);
 });
 
 // ======================================================
@@ -39,7 +39,7 @@ const DATA_PATH = path.join(DATA_DIR, "usuarios.json");
 fs.ensureDirSync(DATA_DIR);
 fs.ensureFileSync(DATA_PATH);
 
-// Si el archivo está vacío, inicialízalo correctamente
+// Inicializar archivo si está vacío o no es array
 try {
   const contenido = fs.readJsonSync(DATA_PATH, { throws: false });
   if (!Array.isArray(contenido)) {
@@ -64,10 +64,12 @@ app.post("/registro", async (req, res) => {
 
     let usuarios = await fs.readJson(DATA_PATH);
 
-    if (usuarios.find((u) => u.uid === uid || u.email === email)) {
+    // Verificar existencia exacta
+    const existe = usuarios.find((u) => u.uid === uid || u.email === email);
+    if (existe) {
       return res
-        .status(400)
-        .json({ ok: false, mensaje: "Usuario ya registrado" });
+        .status(200) // Cambiado a 200 para que no se considere error crítico
+        .json({ ok: true, mensaje: "Usuario ya registrado", usuario: existe });
     }
 
     const nuevoUsuario = { uid, nombre, apellido, email };
@@ -99,8 +101,9 @@ app.get("/usuarios", async (req, res) => {
     res.status(500).json({ ok: false, mensaje: "Error al leer los usuarios" });
   }
 });
+
 // ======================================================
-// POST /sync-usuarios   <-- NUEVO
+// POST /sync-usuarios
 // ======================================================
 app.post("/sync-usuarios", async (req, res) => {
   try {
@@ -115,7 +118,7 @@ app.post("/sync-usuarios", async (req, res) => {
 
     let usuariosLocal = await fs.readJson(DATA_PATH);
 
-    // Convertimos Firebase (objeto) a array compatible con tu archivo local
+    // Convertimos Firebase a array compatible
     const nuevos = Object.entries(usuariosFirebase).map(([uid, data]) => ({
       uid,
       nombre: data.nombre || "",
@@ -126,8 +129,15 @@ app.post("/sync-usuarios", async (req, res) => {
       verificado: data.verificado || false,
     }));
 
-    // Reemplaza todo lo local por lo de Firebase
-    usuariosLocal = nuevos;
+    // Agregar o actualizar sin borrar
+    nuevos.forEach((nuevo) => {
+      const index = usuariosLocal.findIndex((u) => u.uid === nuevo.uid || u.email === nuevo.email);
+      if (index >= 0) {
+        usuariosLocal[index] = { ...usuariosLocal[index], ...nuevo };
+      } else {
+        usuariosLocal.push(nuevo);
+      }
+    });
 
     await fs.writeJson(DATA_PATH, usuariosLocal, { spaces: 2 });
 
@@ -145,6 +155,7 @@ app.post("/sync-usuarios", async (req, res) => {
     });
   }
 });
+
 // ======================================================
 // PÁGINA PRINCIPAL CON LINK DE VERIFICACIÓN
 // ======================================================
@@ -173,7 +184,6 @@ app.get("/", async (req, res) => {
 
     console.log("LINK FINAL GENERADO:", linkFirebase);
 
-    // Evitar romper HTML al meter el link
     const linkSanitized = linkFirebase.replace(/"/g, "&quot;");
 
     const html = `
@@ -184,38 +194,14 @@ app.get("/", async (req, res) => {
       <title>Verificación PUCECar</title>
 
       <style>
-        body {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          font-family: Arial, sans-serif;
-          background: #eef2f5;
-        }
-        .card {
-          background: white;
-          padding: 32px;
-          width: 380px;
-          border-radius: 16px;
-          box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-          text-align: center;
-        }
-        button {
-          padding: 12px 20px;
-          font-size: 16px;
-          background: #0077ff;
-          color: white;
-          border-radius: 8px;
-          border: none;
-          cursor: pointer;
-          width: 100%;
-        }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background: #eef2f5; }
+        .card { background: white; padding: 32px; width: 380px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); text-align: center; }
+        button { padding: 12px 20px; font-size: 16px; background: #0077ff; color: white; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
         button:hover { background: #005fd1; }
         h1 { margin-bottom: 12px; }
         p { font-size: 17px; }
         .debug { font-size: 12px; margin-top: 20px; color: #777; word-break: break-all; }
       </style>
-
     </head>
     <body>
 
