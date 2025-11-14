@@ -22,7 +22,7 @@ async function leerUltimosCorreosEnviados(limit = 10) {
   await connection.openBox('[Gmail]/Sent Mail');
 
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: ['HEADER', 'TEXT'], struct: true };
+  const fetchOptions = { bodies: ['HEADER', ''], struct: true }; // '' para obtener todo el body
 
   const messages = await connection.search(searchCriteria, fetchOptions);
 
@@ -33,9 +33,19 @@ async function leerUltimosCorreosEnviados(limit = 10) {
     let body = '';
     let headersObj = {};
 
-    msg.parts.forEach(part => {
-      if (part.which === 'TEXT') body += part.body;
-      if (part.which === 'HEADER') headersObj = part.body;
+    // Recorrer todas las partes para obtener text/plain
+    const parts = imaps.getParts(msg.attributes.struct);
+    parts.forEach(part => {
+      const partData = msg.parts.find(p => p.which === part.partID);
+      if (!partData) return;
+
+      if (part.type === 'text' && part.subtype === 'plain' && part.disposition !== 'attachment') {
+        body += partData.body;
+      }
+
+      if (part.which === 'HEADER') {
+        headersObj = partData.body;
+      }
     });
 
     return { body, headers: headersObj };
@@ -74,8 +84,8 @@ function correoEsPara(correo, emailUsuario) {
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
 
-  console.log('Últimos correos obtenidos:');
-  correos.forEach((c, i) => console.log(i, c.body.slice(0, 100))); // primeros 100 caracteres
+  console.log('Últimos correos obtenidos (primeros 200 caracteres de cada uno):');
+  correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
 
   // Filtrar correos enviados a este usuario y recorrer de más reciente a más antiguo
   const filtrados = correos.reverse().filter(c => correoEsPara(c, emailUsuario));
