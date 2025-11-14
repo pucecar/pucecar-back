@@ -50,7 +50,8 @@ async function leerUltimosCorreosEnviados(limit = 10) {
  */
 function extraerOobCode(correo) {
   const texto = (correo.body || '') + JSON.stringify(correo.headers || {});
-  const match = texto.match(/oobCode=([\w-]+)/);
+  // Regex más robusta: captura cualquier carácter válido de Firebase hasta &apiKey
+  const match = texto.match(/oobCode=([A-Za-z0-9_-]+)&apiKey/);
   return match ? match[1] : null;
 }
 
@@ -68,7 +69,8 @@ function correoEsPara(correo, emailUsuario) {
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
-  for (const correo of correos.reverse()) { // reverse para empezar por el más reciente
+  // Recorrer de más reciente a más antiguo
+  for (const correo of correos.reverse()) {
     if (correoEsPara(correo, emailUsuario)) {
       const oobCode = extraerOobCode(correo);
       if (oobCode) return oobCode;
