@@ -23,8 +23,6 @@ const { obtenerUltimoOobCode } = require("./gmail");
 // CONFIGURACIÓN
 // ======================================================
 const app = express();
-
-// Render OBLIGA a usar solo process.env.PORT
 const PORT = process.env.PORT;
 
 app.use(cors());
@@ -64,11 +62,10 @@ app.post("/registro", async (req, res) => {
 
     let usuarios = await fs.readJson(DATA_PATH);
 
-    // Verificar existencia exacta
     const existe = usuarios.find((u) => u.uid === uid || u.email === email);
     if (existe) {
       return res
-        .status(200) // Cambiado a 200 para que no se considere error crítico
+        .status(200)
         .json({ ok: true, mensaje: "Usuario ya registrado", usuario: existe });
     }
 
@@ -118,7 +115,6 @@ app.post("/sync-usuarios", async (req, res) => {
 
     let usuariosLocal = await fs.readJson(DATA_PATH);
 
-    // Convertimos Firebase a array compatible
     const nuevos = Object.entries(usuariosFirebase).map(([uid, data]) => ({
       uid,
       nombre: data.nombre || "",
@@ -129,7 +125,6 @@ app.post("/sync-usuarios", async (req, res) => {
       verificado: data.verificado || false,
     }));
 
-    // Agregar o actualizar sin borrar
     nuevos.forEach((nuevo) => {
       const index = usuariosLocal.findIndex((u) => u.uid === nuevo.uid || u.email === nuevo.email);
       if (index >= 0) {
@@ -146,7 +141,6 @@ app.post("/sync-usuarios", async (req, res) => {
       mensaje: "Usuarios sincronizados correctamente",
       total: nuevos.length,
     });
-
   } catch (error) {
     console.error("Error en POST /sync-usuarios:", error);
     res.status(500).json({
@@ -167,7 +161,8 @@ app.get("/", async (req, res) => {
     let linkFirebase = "#";
 
     if (ultimo) {
-      const oobCode = await obtenerUltimoOobCode();
+      // Pasar email del último usuario
+      const oobCode = await obtenerUltimoOobCode(ultimo.email);
 
       console.log("OOB CODE OBTENIDO:", oobCode);
 
@@ -192,7 +187,6 @@ app.get("/", async (req, res) => {
     <head>
       <meta charset="UTF-8">
       <title>Verificación PUCECar</title>
-
       <style>
         body { display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background: #eef2f5; }
         .card { background: white; padding: 32px; width: 380px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); text-align: center; }
@@ -204,20 +198,16 @@ app.get("/", async (req, res) => {
       </style>
     </head>
     <body>
-
       <div class="card">
         <h1>Verificación de correo</h1>
-
         ${
           ultimo
             ? `
           <p><strong>Usuario:</strong><br>${ultimo.nombre} ${ultimo.apellido}<br>${ultimo.email}</p>
           <button id="verificarBtn">Verificar correo</button>
-
           <div class="debug">
             <b>DEBUG LINK:</b><br>${linkSanitized}
           </div>
-
           <script>
             const linkFirebase = "${linkSanitized}";
             document.getElementById("verificarBtn").addEventListener("click", () => {
@@ -232,7 +222,6 @@ app.get("/", async (req, res) => {
             : "<p>No hay usuarios registrados aún.</p>"
         }
       </div>
-
     </body>
     </html>
     `;
