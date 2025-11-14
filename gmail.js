@@ -119,10 +119,25 @@ function generarLinkFirebaseDesdeCuerpo(bodies) {
   return `${projectUrl}/__/auth/action?mode=verifyEmail&oobCode=${oobCodeEncontrado}&apiKey=${apiKey}&lang=es-419`;
 }
 
-// Dummy para evitar errores en test
-async function obtenerUltimoOobCodePorEmail() {
-  return null;
+
+async function obtenerUltimoOobCodePorEmail(email) {
+  console.log("=== Inicio obtenerUltimoOobCodePorEmail ===");
+  console.log("Email a buscar:", email);
+
+  const correos = await leerUltimosCorreosEnviados(50); // o más para asegurarte de cubrir todos los correos
+  console.log(`Correos obtenidos: ${correos.length}`);
+
+  // Buscar el último correo enviado a ese email
+  const correo = correos.reverse().find(c => c.to.includes(email));
+  console.log("Correo encontrado para el email:", correo);
+
+  const firebaseURL = correo?.firebaseURL || null;
+  console.log("OOB code/link encontrado:", firebaseURL);
+
+  console.log("=== Fin obtenerUltimoOobCodePorEmail ===\n");
+  return firebaseURL ? firebaseURL.match(/oobCode=([A-Za-z0-9-_]+)/)[1] : null;
 }
+
 
 async function generarLinkFirebase() {
   return null;
