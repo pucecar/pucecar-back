@@ -1,11 +1,10 @@
 const imaps = require('imap-simple');
-const { decode } = require('quoted-printable');
 
 // Configuración IMAP de Gmail
 const config = {
   imap: {
-    user: 'pucecarmail1@gmail.com',      // tu correo Gmail
-    password: 'pwbz swnq jcwm aixv',     // contraseña de app
+    user: 'pucecarmail1@gmail.com',
+    password: 'pwbz swnq jcwm aixv', 
     host: 'imap.gmail.com',
     port: 993,
     tls: true,
@@ -15,28 +14,37 @@ const config = {
 };
 
 /**
- * Leer los últimos N correos enviados
+ * Leer últimos N correos enviados
  */
 async function leerCorreosEnviados(limit = 10) {
   const connection = await imaps.connect({ imap: config.imap });
   await connection.openBox('[Gmail]/Sent Mail');
 
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: ['HEADER', 'TEXT'], struct: true };
+  const fetchOptions = {
+    bodies: ['HEADER', 'TEXT'],
+    struct: true
+  };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
+
+  // Tomar solo los últimos N
   const ultimos = messages.slice(-limit);
 
   const correos = ultimos.map(msg => {
     let body = "";
+    let headers = "";
+
     msg.parts.forEach(part => {
       if (part.which === 'TEXT') body += part.body;
+      if (part.which === 'HEADER') headers = part.body;
     });
 
-    // Decodificar quoted-printable si es necesario
-    body = decode(body);
+    // Extraer destinatario desde los headers
+    const toMatch = headers.match(/To:\s*(.+)/i);
+    const destinatario = toMatch ? toMatch[1].trim() : null;
 
-    return { body };
+    return { body, headers, destinatario };
   });
 
   await connection.end();
@@ -44,31 +52,35 @@ async function leerCorreosEnviados(limit = 10) {
 }
 
 /**
- * Extraer el oobCode del cuerpo del correo
+ * Extraer oobCode del cuerpo del correo
  */
-function extraerOobCodeDeCorreo(correo) {
-  const body = correo.body || "";
-  const match = body.match(/oobCode=([\w-]+)/);
+function extraerOobCode(cuerpo) {
+  const match = cuerpo.match(/oobCode=([\w-]+)/);
   return match ? match[1] : null;
 }
 
 /**
- * Obtener el oobCode del último correo enviado
+ * Obtener último oobCode de un email específico
  */
-async function obtenerUltimoOobCode() {
-  try {
-    const correos = await leerCorreosEnviados(10);
+async function obtenerUltimoOobCode(emailUsuario) {
+  const correos = await leerCorreosEnviados(10); // últimos 10 correos
+  if (!correos.length) return null;
 
-    for (const correo of correos) {
-      const oobCode = extraerOobCodeDeCorreo(correo);
+  // Buscar el primer correo cuyo destinatario coincida con el email del usuario
+  for (const correo of correos.reverse()) { // empezando por el más reciente
+    if (!correo.destinatario) continue;
+
+    // Normalizar emails
+    const destinatarioLimpio = correo.destinatario.replace(/<|>/g, "").toLowerCase();
+    const emailUsuarioLimpio = emailUsuario.toLowerCase();
+
+    if (destinatarioLimpio.includes(emailUsuarioLimpio)) {
+      const oobCode = extraerOobCode(correo.body);
       if (oobCode) return oobCode;
     }
-
-    return null;
-  } catch (error) {
-    console.error("Error obteniendo el último oobCode:", error);
-    return null;
   }
+
+  return null;
 }
 
 module.exports = { obtenerUltimoOobCode };
