@@ -25,9 +25,9 @@ async function leerUltimosCorreosEnviados(limit = 10) {
   const fetchOptions = { bodies: [''], struct: true };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
-
   const ultimos = messages.slice(-limit);
 
+  // Función recursiva para obtener todo el texto plano
   function obtenerTextoPlano(parts, msg) {
     let body = '';
     for (const part of parts) {
@@ -36,7 +36,6 @@ async function leerUltimosCorreosEnviados(limit = 10) {
       } else {
         const partData = msg.parts.find(p => p.which === part.partID);
         if (!partData) continue;
-
         if (part.type === 'text' && part.subtype === 'plain' && part.disposition !== 'attachment') {
           body += partData.body;
         }
@@ -65,10 +64,11 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 function extraerOobCode(correo) {
   if (!correo.body) return null;
 
+  // Eliminar saltos de línea y buscar patrón
   const textoPlano = correo.body.replace(/\r?\n/g, '');
   const match = textoPlano.match(/mode=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
-
   if (match && match[1]) return match[1];
+
   return null;
 }
 
@@ -86,9 +86,6 @@ function correoEsPara(correo, emailUsuario) {
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
-
-  console.log('Últimos correos obtenidos (primeros 200 caracteres):');
-  correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
 
   const filtrados = correos.reverse().filter(c => correoEsPara(c, emailUsuario));
 
