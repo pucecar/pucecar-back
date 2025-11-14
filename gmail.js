@@ -139,9 +139,6 @@ async function obtenerUltimoOobCodePorEmail(email) {
 }
 
 
-async function generarLinkFirebase() {
-  return null;
-}
 
 module.exports = {
   leerUltimosCorreosEnviados,
