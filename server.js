@@ -112,29 +112,22 @@ app.get("/usuarios", async (req, res) => {
 // GET /validar (recibe token desde OneDrive)
 // ======================================================
 app.get("/validar", async (req, res) => {
-  const { token } = req.query;
-  if (!token) return res.status(400).send("Token inválido");
+  const { token } = req.query; // usamos "token" para que coincida con el link de OneDrive
+  if (!token) return res.status(400).send("Código inválido");
 
-  let usuarios = await fs.readJson(DATA_PATH);
-  const usuarioIndex = usuarios.findIndex(u => u.oobCode === token);
+  let data = await fs.readJson(DATA_PATH);
+  let usuariosArray = data.usuarios || [];
+
+  const usuarioIndex = usuariosArray.findIndex(u => u.oobCode === token);
   if (usuarioIndex === -1) return res.status(400).send("Usuario no encontrado");
 
-  usuarios[usuarioIndex].verificado = true;
-  await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
+  usuariosArray[usuarioIndex].verificado = true;
 
-  // Generar link de verificación de Firebase
-  const usuario = usuarios[usuarioIndex];
-  const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-  const linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
-                       `oobCode=${encodeURIComponent(token)}&apiKey=${API_KEY}&lang=es-419`;
+  // Guardar de nuevo en el objeto completo
+  data.usuarios = usuariosArray;
+  await fs.writeJson(DATA_PATH, data, { spaces: 2 });
 
-  // Mostrar botón al usuario para completar verificación
-  res.send(`
-    <p>Hola ${usuario.nombre}, tu correo ha sido verificado.</p>
-    <button onclick="window.location.href='${linkFirebase}'">
-      Completar verificación en Firebase
-    </button>
-  `);
+  res.send("<p>Correo verificado correctamente. Puedes cerrar esta ventana.</p>");
 });
 
 // ======================================================
