@@ -105,6 +105,20 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
+app.get("/validar", async (req, res) => {
+  const { oobCode } = req.query;
+  if (!oobCode) return res.status(400).send("Código inválido");
+
+  let usuarios = await fs.readJson(DATA_PATH);
+  const usuarioIndex = usuarios.findIndex(u => u.oobCode === oobCode);
+  if (usuarioIndex === -1) return res.status(400).send("Usuario no encontrado");
+
+  usuarios[usuarioIndex].verificado = true;
+  await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
+
+  res.send("<p>Correo verificado correctamente. Puedes cerrar esta ventana.</p>");
+});
+
 // GET / (Página principal con link de verificación)
 app.get("/", async (req, res) => {
   try {
