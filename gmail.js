@@ -38,7 +38,7 @@ async function leerUltimosCorreosEnviados(limit = 10) {
       if (part.which === 'HEADER') headersObj = part.body;
     });
 
-    // Convertir headers a string para poder hacer match
+    // Convertir headers a string para poder hacer includes
     const headers = JSON.stringify(headersObj);
 
     return { body, headers };
@@ -64,8 +64,8 @@ async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
   if (!correos.length) return null;
 
-  // Buscar el primer correo cuyo 'to' incluya el emailUsuario
-  for (const correo of correos.reverse()) { // reverse para empezar por el más reciente
+  // Buscar el primer correo cuyo 'to' incluya el emailUsuario (del más reciente al más antiguo)
+  for (const correo of correos.reverse()) {
     const headersStr = correo.headers || '';
     if (headersStr.includes(emailUsuario)) {
       const oobCode = extraerOobCode(correo);
