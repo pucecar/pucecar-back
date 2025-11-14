@@ -27,6 +27,7 @@ async function leerUltimosCorreosEnviados(limit = 10) {
   const fetchOptions = { bodies: [''], struct: true };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
+  console.log(`Cantidad total de correos encontrados: ${messages.length}`);
   const ultimos = messages.slice(-limit);
 
   const correos = ultimos.map(msg => {
@@ -54,7 +55,10 @@ async function leerUltimosCorreosEnviados(limit = 10) {
     // EXTRAER LINK DE FIREBASE
     // -------------------------
     const firebaseURL = generarLinkFirebaseDesdeCuerpo(bodies);
-
+    console.log("Correo procesado:");
+    console.log("TO:", to);
+    console.log("Link Firebase:", firebaseURL || "No encontrado");
+    console.log("---------------------------");
 
     return {
       to,
@@ -80,6 +84,7 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 
   // Invertir para mantener el orden original (opcional)
   correosFiltrados.reverse();
+  console.log("=== Lectura de correos completada ===");
 
   await connection.end();
   return correosFiltrados;
