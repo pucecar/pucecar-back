@@ -70,44 +70,26 @@ function extraerOobCode(texto) {
 /**
  * Extraer correo destinatario del HEADER
  */
-function extraerCorreoDestino(headers) {
-  const regex = /To:\s*(.*)\r?\n/i;
-  const match = headers.match(regex);
-  if (!match) return null;
+function extraerCorreoDestino(email) {
+  // email.body contiene el contenido del correo
+  const html = email.body || "";
 
-  const clean = match[1].replace(/<|>|"/g, '').trim();
-  return clean;
+  // Buscar el parámetro oobCode en el href
+  const match = html.match(/oobCode=([\w-]+)/);
+  if (match && match[1]) {
+    return match[1];
+  }
+
+  return null;
 }
 
-/**
- * Obtener el último correo enviado con TODA la info útil:
- * emailDestino, oobCode, linkCompleto
- */
 async function obtenerUltimoOobCode() {
-  const correos = await leerCorreosEnviados(10); // <--- SOLO 10 ÚLTIMOS
+  const correos = await obtenerUltimosCorreos(); // tu función que obtiene los últimos 10 correos
+  if (!correos.length) return null;
 
-  console.log("============== ÚLTIMOS 10 CORREOS ==============");
-  console.log(correos);
-  console.log("===============================================");
-
-  // Revisar de más reciente a más antiguo
-  for (const correo of correos.reverse()) {
-
-    const email = extraerCorreoDestino(correo.headers);
-    const link = extraerLinkCompleto(correo.body);
-    const code = extraerOobCode(correo.body);
-
-    console.log("DESTINATARIO:", email);
-    console.log("LINK:", link);
-    console.log("OOBCode:", code);
-
-    if (email && code) {
-      return {
-        emailDestino: email,
-        oobCode: code,
-        linkCompleto: link
-      };
-    }
+  for (const correo of correos) {
+    const oobCode = extraerCorreoDestino(correo);
+    if (oobCode) return oobCode;
   }
 
   return null;
