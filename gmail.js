@@ -14,19 +14,26 @@ const config = {
 };
 
 /**
- * Leer correos enviados (Sent Mail / Enviados)
+ * Leer solo los últimos N correos enviados
  */
-async function leerCorreosEnviados() {
+async function leerCorreosEnviados(limit = 10) {
   const connection = await imaps.connect({ imap: config.imap });
 
   await connection.openBox('[Gmail]/Sent Mail');
 
+  // Buscar solo por UID para limitar
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: ['HEADER', 'TEXT'], struct: true };
+  const fetchOptions = {
+    bodies: ['HEADER', 'TEXT'],
+    struct: true
+  };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
 
-  const correos = messages.map(msg => {
+  // Tomar solo los últimos N
+  const ultimos = messages.slice(-limit);
+
+  const correos = ultimos.map(msg => {
     let body = "";
     let headers = "";
 
@@ -77,12 +84,13 @@ function extraerCorreoDestino(headers) {
  * emailDestino, oobCode, linkCompleto
  */
 async function obtenerUltimoOobCode() {
-  const correos = await leerCorreosEnviados();
+  const correos = await leerCorreosEnviados(10); // <--- SOLO 10 ÚLTIMOS
 
-  console.log("============== CORREOS ENVIADOS ==============");
+  console.log("============== ÚLTIMOS 10 CORREOS ==============");
   console.log(correos);
-  console.log("==============================================");
+  console.log("===============================================");
 
+  // Revisar de más reciente a más antiguo
   for (const correo of correos.reverse()) {
 
     const email = extraerCorreoDestino(correo.headers);
