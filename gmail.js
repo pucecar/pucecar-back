@@ -38,10 +38,7 @@ async function leerUltimosCorreosEnviados(limit = 10) {
       if (part.which === 'HEADER') headersObj = part.body;
     });
 
-    // Convertir headers a string para poder hacer includes
-    const headers = JSON.stringify(headersObj);
-
-    return { body, headers };
+    return { body, headers: headersObj };
   });
 
   await connection.end();
@@ -52,9 +49,18 @@ async function leerUltimosCorreosEnviados(limit = 10) {
  * Extraer oobCode de un correo (body + headers)
  */
 function extraerOobCode(correo) {
-  const texto = (correo.body || '') + (correo.headers || '');
+  const texto = (correo.body || '') + JSON.stringify(correo.headers || {});
   const match = texto.match(/oobCode=([\w-]+)/);
   return match ? match[1] : null;
+}
+
+/**
+ * Validar si un correo fue enviado a un destinatario específico
+ */
+function correoEsPara(correo, emailUsuario) {
+  if (!correo.headers || !correo.headers.to) return false;
+  const toHeader = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
+  return toHeader.some(dest => dest.includes(emailUsuario));
 }
 
 /**
@@ -62,17 +68,12 @@ function extraerOobCode(correo) {
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
-  if (!correos.length) return null;
-
-  // Buscar el primer correo cuyo 'to' incluya el emailUsuario (del más reciente al más antiguo)
-  for (const correo of correos.reverse()) {
-    const headersStr = correo.headers || '';
-    if (headersStr.includes(emailUsuario)) {
+  for (const correo of correos.reverse()) { // reverse para empezar por el más reciente
+    if (correoEsPara(correo, emailUsuario)) {
       const oobCode = extraerOobCode(correo);
       if (oobCode) return oobCode;
     }
   }
-
   return null;
 }
 
