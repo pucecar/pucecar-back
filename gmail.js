@@ -137,6 +137,9 @@ async function obtenerUltimoOobCodePorEmail(email) {
   console.log("=== Fin obtenerUltimoOobCodePorEmail ===\n");
   return firebaseURL ? firebaseURL.match(/oobCode=([A-Za-z0-9-_]+)/)[1] : null;
 }
+async function generarLinkFirebase() {
+  return null;
+}
 
 
 
