@@ -1,7 +1,6 @@
 // gmail.js
 const imaps = require('imap-simple');
 
-// Configuración IMAP de Gmail
 const config = {
   imap: {
     user: 'pucecarmail1@gmail.com',
@@ -10,72 +9,65 @@ const config = {
     port: 993,
     tls: true,
     tlsOptions: { rejectUnauthorized: false },
-    authTimeout: 5000
-  }
+    authTimeout: 20000,
+  },
 };
 
 /**
- * Leer solo los últimos N correos enviados
+ * Leer últimos N correos enviados
  */
 async function leerUltimosCorreosEnviados(limit = 10) {
-  const connection = await imaps.connect({ imap: config.imap });
-  await connection.openBox('[Gmail]/Sent Mail');
+  let connection;
+  try {
+    connection = await imaps.connect({ imap: config.imap });
+    await connection.openBox('[Gmail]/Sent Mail');
 
-  const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: ['HEADER', 'TEXT'], struct: true };
+    const searchCriteria = ['ALL'];
+    const fetchOptions = { bodies: ['HEADER', 'TEXT'], struct: true };
 
-  const messages = await connection.search(searchCriteria, fetchOptions);
+    const messages = await connection.search(searchCriteria, fetchOptions);
+    const ultimos = messages.slice(-limit);
 
-  // Tomar solo los últimos N
-  const ultimos = messages.slice(-limit);
-
-  const correos = ultimos.map(msg => {
-    let body = '';
-    let headersObj = {};
-
-    msg.parts.forEach(part => {
-      if (part.which === 'TEXT') body += part.body;
-      if (part.which === 'HEADER') headersObj = part.body;
+    const correos = ultimos.map(msg => {
+      let body = '';
+      msg.parts.forEach(part => {
+        if (part.which === 'TEXT') body += part.body;
+      });
+      return { body };
     });
 
-    return { body, headers: headersObj };
-  });
-
-  await connection.end();
-  return correos;
+    return correos;
+  } catch (err) {
+    console.error('Error leyendo correos IMAP:', err);
+    return [];
+  } finally {
+    if (connection) await connection.end();
+  }
 }
 
 /**
- * Extraer oobCode de un correo (body + headers)
- * Regex robusta: captura todo después de 'oobCode=' hasta '&apiKey'
+ * Extraer oobCode completo desde el cuerpo del correo
  */
 function extraerOobCode(correo) {
-  const texto = correo.body || '';
-  const match = texto.match(/oobCode=([A-Za-z0-9_-]+)&apiKey/);
+  if (!correo.body) return null;
+  const match = correo.body.match(/mode=verifyEmail&oobCode=([^&\s]+)/);
   return match ? match[1] : null;
 }
 
 /**
- * Validar si un correo fue enviado a un destinatario específico
- */
-function correoEsPara(correo, emailUsuario) {
-  if (!correo.headers || !correo.headers.to) return false;
-  const toHeader = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
-  return toHeader.some(dest => dest.includes(emailUsuario));
-}
-
-/**
- * Obtener el último oobCode de un destinatario específico
+ * Obtener el último oobCode de un destinatario
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
-  // Recorrer de más reciente a más antiguo
+
   for (const correo of correos.reverse()) {
-    if (correoEsPara(correo, emailUsuario)) {
+    // Busca el email dentro del cuerpo, ya que headers pueden fallar
+    if (correo.body && correo.body.includes(emailUsuario)) {
       const oobCode = extraerOobCode(correo);
       if (oobCode) return oobCode;
     }
   }
+
   return null;
 }
 
