@@ -23,7 +23,7 @@ const { obtenerUltimoOobCodePorEmail } = require("./gmail");
 // CONFIGURACIÓN
 // ======================================================
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 10000; // fallback por si no está en Render
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -34,6 +34,7 @@ app.use(bodyParser.json());
 const DATA_DIR = path.join(__dirname, "data");
 const DATA_PATH = path.join(DATA_DIR, "usuarios.json");
 
+// Asegurar directorio y archivo
 fs.ensureDirSync(DATA_DIR);
 fs.ensureFileSync(DATA_PATH);
 
@@ -41,19 +42,22 @@ fs.ensureFileSync(DATA_PATH);
 try {
   const contenido = fs.readJsonSync(DATA_PATH, { throws: false });
   if (!Array.isArray(contenido)) {
+    console.log("Archivo JSON no es array, reinicializando...");
     fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
   }
-} catch {
+} catch (err) {
+  console.error("Error al leer inicializar usuarios.json:", err);
   fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
 }
 
 // ======================================================
-// POST /registro
+// RUTAS
 // ======================================================
+
+// POST /registro
 app.post("/registro", async (req, res) => {
   try {
     const { uid, nombre, apellido, email } = req.body;
-
     if (!uid || !email) {
       return res
         .status(400)
@@ -80,15 +84,11 @@ app.post("/registro", async (req, res) => {
     });
   } catch (error) {
     console.error("Error en POST /registro:", error);
-    res
-      .status(500)
-      .json({ ok: false, mensaje: "Error interno del servidor" });
+    res.status(500).json({ ok: false, mensaje: "Error interno del servidor" });
   }
 });
 
-// ======================================================
 // GET /usuarios
-// ======================================================
 app.get("/usuarios", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
@@ -99,9 +99,7 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
-// ======================================================
 // POST /sync-usuarios
-// ======================================================
 app.post("/sync-usuarios", async (req, res) => {
   try {
     const usuariosFirebase = req.body;
@@ -145,16 +143,11 @@ app.post("/sync-usuarios", async (req, res) => {
     });
   } catch (error) {
     console.error("Error en POST /sync-usuarios:", error);
-    res.status(500).json({
-      ok: false,
-      mensaje: "Error interno al sincronizar",
-    });
+    res.status(500).json({ ok: false, mensaje: "Error interno al sincronizar" });
   }
 });
 
-// ======================================================
-// PÁGINA PRINCIPAL CON LINK DE VERIFICACIÓN
-// ======================================================
+// GET / (Página principal con link de verificación)
 app.get("/", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
@@ -233,4 +226,15 @@ app.get("/", async (req, res) => {
     console.error("Error en GET /:", error);
     res.status(500).send("<p>Error al cargar la página</p>");
   }
+});
+
+// ======================================================
+// INICIAR SERVIDOR
+// ======================================================
+app.listen(PORT, (err) => {
+  if (err) {
+    console.error("Error al iniciar servidor:", err);
+    process.exit(1);
+  }
+  console.log(`Servidor iniciado en puerto ${PORT}`);
 });
