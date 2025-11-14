@@ -17,39 +17,33 @@ const config = {
 /**
  * Leer los últimos N correos enviados desde Gmail
  */
-async function leerUltimosCorreosEnviados(limit = 10) {
+async function leerUltimosCorreosEnviados(limit = 20) {
   const connection = await imaps.connect({ imap: config.imap });
   await connection.openBox('[Gmail]/Sent Mail');
 
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: ['TEXT'], struct: true };
-
+  const fetchOptions = { bodies: [''], struct: true }; // '' para obtener todo
   const messages = await connection.search(searchCriteria, fetchOptions);
   const ultimos = messages.slice(-limit);
 
-  // Función recursiva para obtener todo el texto plano de multipart
-  function obtenerTextoPlano(parts) {
+  function getBody(parts, msg) {
     let body = '';
     for (const part of parts) {
       if (Array.isArray(part.parts)) {
-        body += obtenerTextoPlano(part.parts);
-      } else if (part.type === 'text') {
-        body += part.body || '';
+        body += getBody(part.parts, msg);
+      } else if (part.type === 'text' && part.subtype === 'plain') {
+        const partData = msg.parts.find(p => p.partID === part.partID);
+        if (partData && partData.body) body += partData.body;
       }
     }
     return body;
   }
 
   const correos = ultimos.map(msg => {
-    let body = '';
-    if (msg.parts && msg.parts.length) {
-      body = obtenerTextoPlano(msg.parts);
-    }
-
+    const body = msg.attributes.struct ? getBody(msg.attributes.struct, msg) : '';
     let headersObj = {};
     const headerPart = msg.parts.find(p => p.which === 'HEADER');
     if (headerPart) headersObj = headerPart.body;
-
     return { body, headers: headersObj };
   });
 
@@ -64,8 +58,7 @@ function extraerOobCode(correo) {
   if (!correo.body) return null;
   const textoPlano = correo.body.replace(/\r?\n/g, '');
   const match = textoPlano.match(/mode=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
-  if (match && match[1]) return match[1];
-  return null;
+  return match ? match[1] : null;
 }
 
 /**
@@ -78,7 +71,6 @@ function correoEsPara(correo, emailUsuario) {
   if (correo.headers.to) toList = Array.isArray(correo.headers.to) ? correo.headers.to : [correo.headers.to];
   else if (correo.headers.To) toList = Array.isArray(correo.headers.To) ? correo.headers.To : [correo.headers.To];
 
-  // Convertir cualquier objeto a string
   toList = toList.map(t => (typeof t === 'string' ? t : t.value ? t.value.join(',') : ''));
 
   return toList.some(dest => dest.includes(emailUsuario));
@@ -88,9 +80,8 @@ function correoEsPara(correo, emailUsuario) {
  * Obtener el último oobCode válido para un email específico
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
-  const correos = await leerUltimosCorreosEnviados(10);
+  const correos = await leerUltimosCorreosEnviados(50); // más correos por seguridad
 
-  // Logging de debug para verificar cuerpos
   console.log('Últimos correos obtenidos (primeros 200 caracteres):');
   correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
 
