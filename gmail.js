@@ -1,4 +1,6 @@
+// gmail.js
 const imaps = require('imap-simple');
+const cheerio = require('cheerio');
 
 // Configuración IMAP de Gmail
 const config = {
@@ -22,23 +24,30 @@ function decodeBase64(body) {
   }
 }
 
-// Obtener contenido recursivo
+// Obtener contenido recursivo y limpiar HTML
 function obtenerContenido(parts) {
   let contenido = '';
   for (const part of parts) {
     if (part.parts && Array.isArray(part.parts)) {
       contenido += obtenerContenido(part.parts);
     }
-    if (part.body) contenido += part.body;
-    if (part.body && part.body.data) contenido += decodeBase64(part.body.data);
+    if (part.body && part.body.data) {
+      contenido += decodeBase64(part.body.data);
+    }
   }
   return contenido;
+}
+
+// Limpiar HTML a texto usando Cheerio
+function limpiarHTML(html) {
+  const $ = cheerio.load(html);
+  return $.text().replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 // Leer últimos N correos enviados
 async function leerUltimosCorreosEnviados(limit = 20) {
   const connection = await imaps.connect({ imap: config.imap });
-  await connection.openBox('[Gmail]/Sent Mail');
+  await connection.openBox('[Gmail]/Sent Mail'); // o '[Gmail]/Enviados'
 
   const searchCriteria = ['ALL'];
   const fetchOptions = { bodies: [''], struct: true };
@@ -46,8 +55,8 @@ async function leerUltimosCorreosEnviados(limit = 20) {
   const ultimos = messages.slice(-limit);
 
   const correos = ultimos.map(msg => {
-    const body = msg.attributes.struct ? obtenerContenido(msg.attributes.struct) : '';
-    const bodyLimpio = body.replace(/=\r?\n/g, '').replace(/<wbr>/gi, '').replace(/\r?\n/g, '').trim();
+    const html = msg.attributes.struct ? obtenerContenido(msg.attributes.struct) : '';
+    const bodyLimpio = limpiarHTML(html);
     return { body: bodyLimpio };
   });
 
