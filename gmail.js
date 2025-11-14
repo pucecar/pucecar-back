@@ -46,15 +46,16 @@ async function leerUltimosCorreosEnviados(limit = 10) {
 }
 
 /**
- * Extraer oobCode del correo (basado en formato estándar de PUCECar)
+ * Extraer oobCode del correo
  */
 function extraerOobCode(correo) {
   if (!correo.body) return null;
 
-  // Regex simple y directa para el formato garantizado
-  const match = correo.body.match(/mode=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
-  if (match && match[1]) return match[1];
+  // Eliminar saltos de línea y buscar el patrón
+  const textoPlano = correo.body.replace(/\r?\n/g, '');
+  const match = textoPlano.match(/mode=verifyEmail&oobCode=([A-Za-z0-9_-]+)&apiKey/);
 
+  if (match && match[1]) return match[1];
   return null;
 }
 
@@ -73,6 +74,9 @@ function correoEsPara(correo, emailUsuario) {
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
   const correos = await leerUltimosCorreosEnviados(10);
 
+  console.log('Últimos correos obtenidos:');
+  correos.forEach((c, i) => console.log(i, c.body.slice(0, 100))); // primeros 100 caracteres
+
   // Filtrar correos enviados a este usuario y recorrer de más reciente a más antiguo
   const filtrados = correos.reverse().filter(c => correoEsPara(c, emailUsuario));
 
@@ -85,8 +89,16 @@ async function obtenerUltimoOobCodePorEmail(emailUsuario) {
     if (oobCode) return oobCode;
   }
 
-  // Si llegamos aquí, había correos pero ninguno tenía oobCode válido
   throw new Error(`No se pudo extraer oobCode válido para ${emailUsuario}`);
 }
 
-module.exports = { obtenerUltimoOobCodePorEmail };
+/**
+ * Generar link de verificación de Firebase a partir del correo
+ */
+async function generarLinkFirebase(emailUsuario, apiKey) {
+  const oobCode = await obtenerUltimoOobCodePorEmail(emailUsuario);
+  const link = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithEmailLink?oobCode=${oobCode}&apiKey=${apiKey}`;
+  return link;
+}
+
+module.exports = { obtenerUltimoOobCodePorEmail, generarLinkFirebase };
