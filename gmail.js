@@ -15,7 +15,7 @@ const config = {
 };
 
 /**
- * Decodificar parte base64 si existe
+ * Decodificar base64 si existe
  */
 function decodeBase64(body) {
   try {
@@ -26,23 +26,36 @@ function decodeBase64(body) {
 }
 
 /**
- * Extraer cuerpo REAL (HTML o texto) recorriendo TODA la estructura MIME
+ * Decodificar quoted-printable si existe
+ */
+function decodeQuotedPrintable(body) {
+  try {
+    return body.replace(/=(\r?\n)/g, '').replace(/=([0-9A-F]{2})/gi, (m, hex) => {
+      return String.fromCharCode(parseInt(hex, 16));
+    });
+  } catch {
+    return body;
+  }
+}
+
+/**
+ * Extraer contenido REAL de un correo recursivamente
  */
 function obtenerContenido(parts) {
   let contenido = '';
 
   for (const part of parts) {
-    // Si la parte tiene subpartes, recursivo
+    // Recursivo si hay subpartes
     if (part.parts && Array.isArray(part.parts)) {
       contenido += obtenerContenido(part.parts);
     }
 
-    // Si es texto o HTML
-    if (part.body && part.body.length > 0) {
+    // Si body viene directo
+    if (part.body) {
       contenido += part.body;
     }
 
-    // Caso IMAP: si el body viene en atributos
+    // Caso base64
     if (part.body && part.body.data) {
       contenido += decodeBase64(part.body.data);
     }
@@ -52,7 +65,7 @@ function obtenerContenido(parts) {
 }
 
 /**
- * Leer los últimos N correos enviados desde Gmail
+ * Leer últimos N correos enviados desde Gmail
  */
 async function leerUltimosCorreosEnviados(limit = 20) {
   const connection = await imaps.connect({ imap: config.imap });
@@ -64,16 +77,15 @@ async function leerUltimosCorreosEnviados(limit = 20) {
   const ultimos = messages.slice(-limit);
 
   const correos = ultimos.map(msg => {
-    // Obtener contenido HTML o texto del correo
+    // Obtener contenido completo
     const body = msg.attributes.struct
       ? obtenerContenido(msg.attributes.struct)
       : '';
 
-    // Quitar basura tipo <wbr>, saltos, etc.
-    const bodyLimpio = body
-      .replace(/=\r?\n/g, '')      // quita saltos de quoted-printable
-      .replace(/<wbr>/gi, '')      // quita wbr
-      .replace(/\r?\n/g, '')       // quita saltos
+    // Limpiar el contenido
+    const bodyLimpio = decodeQuotedPrintable(body)
+      .replace(/<wbr>/gi, '')
+      .replace(/\r?\n/g, '')
       .trim();
 
     let headersObj = {};
@@ -88,12 +100,12 @@ async function leerUltimosCorreosEnviados(limit = 20) {
 }
 
 /**
- * Extraer oobCode del correo ANTES roto → AHORA acepta cualquier link
+ * Extraer oobCode de cualquier enlace en el correo
  */
 function extraerOobCode(correo) {
   if (!correo.body) return null;
 
-  // Buscar en todo el cuerpo cualquier coincidencia de oobCode=
+  // Buscar cualquier oobCode= en el cuerpo
   const match = correo.body.match(/oobCode=([\w-]+)/);
   return match ? match[1] : null;
 }
@@ -117,11 +129,12 @@ function correoEsPara(correo, emailUsuario) {
  * Obtener el último oobCode válido para un email específico
  */
 async function obtenerUltimoOobCodePorEmail(emailUsuario) {
-  const correos = await leerUltimosCorreosEnviados(50);
+  const correos = await leerUltimosCorreosEnviados(50); // más correos para mayor seguridad
 
-  console.log('Últimos correos obtenidos (primeros 200 caracteres):');
-  correos.forEach((c, i) => console.log(i, c.body.slice(0, 200)));
+  console.log('Últimos correos obtenidos (primeros 300 caracteres):');
+  correos.forEach((c, i) => console.log(i, c.body.slice(0, 300)));
 
+  // Filtrar por destinatario
   const filtrados = correos.reverse().filter(c => correoEsPara(c, emailUsuario));
 
   if (!filtrados.length) {
@@ -137,7 +150,7 @@ async function obtenerUltimoOobCodePorEmail(emailUsuario) {
 }
 
 /**
- * Generar link completo de verificación de Firebase usando tu dominio
+ * Generar link completo de verificación de Firebase
  */
 async function generarLinkFirebase(emailUsuario, apiKey) {
   const oobCode = await obtenerUltimoOobCodePorEmail(emailUsuario);
@@ -145,4 +158,4 @@ async function generarLinkFirebase(emailUsuario, apiKey) {
   return link;
 }
 
-module.exports = { obtenerUltimoOobCodePorEmail, generarLinkFirebase };
+module.exports = { obtenerUltimoOobCodePorEmail, generarLinkFirebase, leerUltimosCorreosEnviados };
