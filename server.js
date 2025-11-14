@@ -57,6 +57,9 @@ try {
 // POST /registro
 app.post("/registro", async (req, res) => {
   try {
+
+    console.log("==> NUEVO REGISTRO DESDE APP:", req.body); 
+    
     const { uid, nombre, apellido, email } = req.body;
     if (!uid || !email) {
       return res
