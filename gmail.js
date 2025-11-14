@@ -18,25 +18,24 @@ const config = {
  */
 async function leerCorreosEnviados() {
   const connection = await imaps.connect({ imap: config.imap });
-  
-  // Correos enviados por Gmail
+
   await connection.openBox('[Gmail]/Sent Mail');
 
   const searchCriteria = ['ALL'];
-  const fetchOptions = { bodies: ['HEADER.FIELDS (FROM TO SUBJECT DATE)', 'TEXT'], struct: true };
+  const fetchOptions = { bodies: ['HEADER', 'TEXT'], struct: true };
 
   const messages = await connection.search(searchCriteria, fetchOptions);
 
   const correos = messages.map(msg => {
     let body = "";
+    let headers = "";
 
     msg.parts.forEach(part => {
-      if (part.which === 'TEXT') {
-        body += part.body;
-      }
+      if (part.which === 'TEXT') body += part.body;
+      if (part.which === 'HEADER') headers = part.body;
     });
 
-    return body;
+    return { body, headers };
   });
 
   await connection.end();
@@ -46,23 +45,36 @@ async function leerCorreosEnviados() {
 /**
  * Extraer link completo
  */
-function extraerLinkCompleto(cuerpo) {
+function extraerLinkCompleto(texto) {
   const regex = /(https:\/\/pucecar-[^\s"]+)/;
-  const match = cuerpo.match(regex);
+  const match = texto.match(regex);
   return match ? match[1] : null;
 }
 
 /**
- * Extraer oobCode sin depender del orden de parámetros
+ * Extraer oobCode independientemente del orden
  */
-function extraerOobCode(cuerpo) {
+function extraerOobCode(texto) {
   const regex = /oobCode=([^&]+)/;
-  const match = cuerpo.match(regex);
+  const match = texto.match(regex);
   return match ? match[1] : null;
 }
 
 /**
- * Obtener último oobCode desde los correos enviados
+ * Extraer correo destinatario del HEADER
+ */
+function extraerCorreoDestino(headers) {
+  const regex = /To:\s*(.*)\r?\n/i;
+  const match = headers.match(regex);
+  if (!match) return null;
+
+  const clean = match[1].replace(/<|>|"/g, '').trim();
+  return clean;
+}
+
+/**
+ * Obtener el último correo enviado con TODA la info útil:
+ * emailDestino, oobCode, linkCompleto
  */
 async function obtenerUltimoOobCode() {
   const correos = await leerCorreosEnviados();
@@ -71,14 +83,23 @@ async function obtenerUltimoOobCode() {
   console.log(correos);
   console.log("==============================================");
 
-  for (const correo of correos.reverse()) {  
-    const link = extraerLinkCompleto(correo);
-    console.log("LINK ENCONTRADO:", link);
+  for (const correo of correos.reverse()) {
 
-    const code = extraerOobCode(correo);
-    console.log("OOBCode EXTRAÍDO:", code);
+    const email = extraerCorreoDestino(correo.headers);
+    const link = extraerLinkCompleto(correo.body);
+    const code = extraerOobCode(correo.body);
 
-    if (code) return code;
+    console.log("DESTINATARIO:", email);
+    console.log("LINK:", link);
+    console.log("OOBCode:", code);
+
+    if (email && code) {
+      return {
+        emailDestino: email,
+        oobCode: code,
+        linkCompleto: link
+      };
+    }
   }
 
   return null;
