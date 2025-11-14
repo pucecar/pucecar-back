@@ -13,7 +13,6 @@ process.on("unhandledRejection", (reason) => {
 // ======================================================
 // IMPORTACIONES
 // ======================================================
-// server.js optimizado
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -42,7 +41,9 @@ try {
   fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
 }
 
+// ======================================================
 // POST /registro
+// ======================================================
 app.post("/registro", async (req, res) => {
   try {
     const { uid, nombre, apellido, email } = req.body;
@@ -60,7 +61,7 @@ app.post("/registro", async (req, res) => {
     // Guardar antes de obtener oobCode para evitar race conditions
     await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
 
-    // Obtener último oobCode
+    // Obtener último oobCode de Firebase
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
       if (oobCode) {
@@ -94,7 +95,9 @@ app.post("/registro", async (req, res) => {
   }
 });
 
+// ======================================================
 // GET /usuarios
+// ======================================================
 app.get("/usuarios", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
@@ -105,21 +108,38 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
+// ======================================================
+// GET /validar (recibe token desde OneDrive)
+// ======================================================
 app.get("/validar", async (req, res) => {
-  const { oobCode } = req.query;
-  if (!oobCode) return res.status(400).send("Código inválido");
+  const { token } = req.query;
+  if (!token) return res.status(400).send("Token inválido");
 
   let usuarios = await fs.readJson(DATA_PATH);
-  const usuarioIndex = usuarios.findIndex(u => u.oobCode === oobCode);
+  const usuarioIndex = usuarios.findIndex(u => u.oobCode === token);
   if (usuarioIndex === -1) return res.status(400).send("Usuario no encontrado");
 
   usuarios[usuarioIndex].verificado = true;
   await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
 
-  res.send("<p>Correo verificado correctamente. Puedes cerrar esta ventana.</p>");
+  // Generar link de verificación de Firebase
+  const usuario = usuarios[usuarioIndex];
+  const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
+  const linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
+                       `oobCode=${encodeURIComponent(token)}&apiKey=${API_KEY}&lang=es-419`;
+
+  // Mostrar botón al usuario para completar verificación
+  res.send(`
+    <p>Hola ${usuario.nombre}, tu correo ha sido verificado.</p>
+    <button onclick="window.location.href='${linkFirebase}'">
+      Completar verificación en Firebase
+    </button>
+  `);
 });
 
+// ======================================================
 // GET / (Página principal con link de verificación)
+// ======================================================
 app.get("/", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
@@ -188,6 +208,9 @@ app.get("/", async (req, res) => {
   }
 });
 
+// ======================================================
+// INICIAR SERVIDOR
+// ======================================================
 app.listen(PORT, (err) => {
   if (err) {
     console.error("Error al iniciar servidor:", err);
@@ -195,4 +218,3 @@ app.listen(PORT, (err) => {
   }
   console.log(`Servidor iniciado en puerto ${PORT}`);
 });
-
