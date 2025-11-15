@@ -47,7 +47,7 @@ function logColas() {
 }
 
 // ======================================================
-// POST /registro
+// POST /registro  (RESPONDE IGUAL QUE EL SERVER VIEJO)
 // ======================================================
 app.post("/registro", async (req, res) => {
   console.log("\n=== NUEVO REGISTRO RECIBIDO ===");
@@ -57,38 +57,40 @@ app.post("/registro", async (req, res) => {
     const { uid, nombre, apellido, email } = req.body;
 
     if (!uid || !email) {
-      return res.status(400).json({ ok: false, mensaje: "Faltan parámetros obligatorios" });
+      return res.status(400).json({
+        ok: false,
+        mensaje: "Faltan parámetros obligatorios"
+      });
     }
 
-    // Buscar si ya existe
+    // Buscar usuario existente
     let usuario = data.usuarios.find(u => u.email === email);
 
-    // Si NO existe => CREAR
+    // Si no existe → crear
     if (!usuario) {
       usuario = { uid, nombre, apellido, email, oobCode: null };
       data.usuarios.push(usuario);
 
+      // Añadir a cola de proceso
       data.colaUsuarios.push({ uid, email });
-
       console.log("Usuario agregado a colaUsuarios.");
     }
 
     guardar();
     logColas();
 
-    // ------------------------------------------------------------------
-    // RESPUESTA INMEDIATA A TU APP (COMO ANTES)
-    // ------------------------------------------------------------------
-    // RESPUESTA INMEDIATA A TU APP (IGUAL AL SERVER ANTERIOR)
-      res.json({
-        ok: true,
-        mensaje: "Usuario registrado correctamente",
-        usuario
-      });
+    // ------------------------------------------------------
+    // RESPUESTA EXACTA COMO EL SERVER ANTERIOR
+    // ------------------------------------------------------
+    res.json({
+      ok: true,
+      mensaje: "Usuario registrado correctamente",
+      usuario
+    });
 
-    // ------------------------------------------------------------------
-    // PROCESO ASÍNCRONO (NO BLOQUEA RESPUESTA)
-    // ------------------------------------------------------------------
+    // ------------------------------------------------------
+    // PROCESO ASÍNCRONO DESPUÉS DE RESPONDER A LA APP
+    // ------------------------------------------------------
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
 
@@ -101,14 +103,14 @@ app.post("/registro", async (req, res) => {
 
         data.colaLinks.push({ email, oobCode, link });
 
-        console.log("Nuevo link agregado a la cola:", link);
+        console.log("Nuevo link agregado a colaLinks:", link);
       }
 
       guardar();
       logColas();
 
     } catch (err) {
-      console.error("ERROR OBTENIENDO OOB CODE:", err.message);
+      console.error("ERROR obteniendo OOB CODE:", err.message);
     }
 
   } catch (error) {
@@ -158,4 +160,3 @@ app.listen(PORT, () => {
   console.log(`Servidor iniciado en puerto ${PORT}`);
   logColas();
 });
-
