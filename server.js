@@ -123,33 +123,22 @@ app.get("/links", (req, res) => {
 app.get("/", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
-    const { uid, email } = req.query;
 
-    // Buscar usuario primero en la cola, si no está, buscar en JSON
-    let usuario = colaUsuarios.find(u => (uid ? u.uid === uid : email ? u.email === email : false));
-    if (!usuario) {
-      usuario = uid
-        ? usuarios.find(u => u.uid === uid)
-        : email
-        ? usuarios.find(u => u.email === email)
-        : null;
-    }
+    // Tomar el primer usuario de la cola
+    const usuario = colaUsuarios.length > 0 ? colaUsuarios.shift() : null;
 
     let linkFirebase = "#";
     if (usuario && usuario.oobCode) {
       const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-      // Buscar link en la cola de links si existe
-      const linkEnCola = colaLinks.find(l => l.includes(usuario.oobCode));
-      linkFirebase = linkEnCola || 
-        `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
+      linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
         `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
-      
-      // Si no estaba en la cola, agregarlo
+
+      // Guardar en colaLinks si no estaba
       if (!colaLinks.includes(linkFirebase)) colaLinks.push(linkFirebase);
     }
 
     // Log en consola de las colas
-    console.log("🟢 Cola Usuarios:", colaUsuarios.map(u => u.email));
+    console.log("🟢 Cola Usuarios (restantes):", colaUsuarios.map(u => u.email));
     console.log("🔵 Cola Links:", colaLinks);
 
     const linkSanitized = linkFirebase.replace(/"/g, "&quot;");
@@ -176,7 +165,7 @@ app.get("/", async (req, res) => {
           ${
             usuario
               ? `
-            <p><strong>Usuario:</strong><br>${usuario.nombre} ${usuario.apellido}<br>${usuario.email}</p>
+            <p><strong>Usuario asignado:</strong><br>${usuario.nombre} ${usuario.apellido}<br>${usuario.email}</p>
             <button id="verificarBtn">Verificar correo</button>
             <div class="debug">
               <b>DEBUG LINK:</b><br>${linkSanitized}
@@ -189,7 +178,7 @@ app.get("/", async (req, res) => {
               });
             </script>
           `
-              : "<p>No se encontró usuario.</p>"
+              : "<p>No hay usuarios en la cola.</p>"
           }
         </div>
       </body>
@@ -202,6 +191,7 @@ app.get("/", async (req, res) => {
     res.status(500).send("<p>Error al cargar la página</p>");
   }
 });
+
 
 // ======================================================
 // INICIAR SERVIDOR
