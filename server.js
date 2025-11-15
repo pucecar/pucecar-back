@@ -49,10 +49,11 @@ const colaLinks = [];    // links generados pendientes
 // ======================================================
 // ENDPOINT /registro
 // ======================================================
+// POST /registro
 app.post("/registro", async (req, res) => {
   try {
     const { uid, nombre, apellido, email } = req.body;
-    if (!uid || !email) return res.status(400).json({ ok: false, mensaje: "Faltan parámetros obligatorios" });
+    if (!uid || !email) return res.status(400).json({ ok: false, mensaje: "Faltan parámetros" });
 
     let usuarios = await fs.readJson(DATA_PATH);
 
@@ -63,30 +64,33 @@ app.post("/registro", async (req, res) => {
       await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
     }
 
-    // agregar a la cola de usuarios
+    // Agregar a colaUsuarios
     if (!colaUsuarios.find(u => u.uid === uid)) colaUsuarios.push(usuario);
+    console.log("🟢 Cola Usuarios:", colaUsuarios.map(u => u.email));
 
-    // Obtener último oobCode del correo
+    // Obtener oobCode y generar link
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
       if (oobCode) {
-        const index = usuarios.findIndex(u => u.uid === usuario.uid);
-        usuarios[index].oobCode = oobCode;
-        await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
         usuario.oobCode = oobCode;
+        const index = usuarios.findIndex(u => u.uid === uid);
+        if (index >= 0) usuarios[index].oobCode = oobCode;
+        await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
 
-        // generar link y agregar a la cola de links
         const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-        const linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
-          `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
+        const linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=${encodeURIComponent(oobCode)}&apiKey=${API_KEY}&lang=es-419`;
 
-        if (!colaLinks.find(l => l.uid === uid)) colaLinks.push({ uid, link: linkFirebase });
+        // Guardar en colaLinks
+        if (!colaLinks.includes(linkFirebase)) colaLinks.push(linkFirebase);
+        console.log("🔵 Cola Links:", colaLinks);
       }
     } catch (err) {
-      console.error(`No se pudo obtener oobCode para ${email}:`, err.message);
+      console.error("⚠️ No se pudo obtener oobCode:", err.message);
     }
 
-    return res.json({ ok: true, mensaje: "Usuario registrado correctamente", usuario });
+    // RESPUESTA FINAL: importante que espere oobCode
+    res.json({ ok: true, mensaje: "Usuario registrado correctamente", usuario });
+
   } catch (error) {
     console.error("Error en POST /registro:", error);
     res.status(500).json({ ok: false, mensaje: "Error interno del servidor" });
@@ -116,23 +120,41 @@ app.get("/links", (req, res) => {
 // ======================================================
 // PÁGINA PRINCIPAL: muestra link de Firebase
 // ======================================================
+// Colas en memoria
+const colaUsuarios = [];
+const colaLinks = [];
+
 app.get("/", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
     const { uid, email } = req.query;
 
-    const usuario = uid
-      ? usuarios.find(u => u.uid === uid)
-      : email
-      ? usuarios.find(u => u.email === email)
-      : null;
+    // Buscar usuario primero en la cola, si no está, buscar en JSON
+    let usuario = colaUsuarios.find(u => (uid ? u.uid === uid : email ? u.email === email : false));
+    if (!usuario) {
+      usuario = uid
+        ? usuarios.find(u => u.uid === uid)
+        : email
+        ? usuarios.find(u => u.email === email)
+        : null;
+    }
 
     let linkFirebase = "#";
     if (usuario && usuario.oobCode) {
       const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-      linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
+      // Buscar link en la cola de links si existe
+      const linkEnCola = colaLinks.find(l => l.includes(usuario.oobCode));
+      linkFirebase = linkEnCola || 
+        `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
         `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
+      
+      // Si no estaba en la cola, agregarlo
+      if (!colaLinks.includes(linkFirebase)) colaLinks.push(linkFirebase);
     }
+
+    // Log en consola de las colas
+    console.log("🟢 Cola Usuarios:", colaUsuarios.map(u => u.email));
+    console.log("🔵 Cola Links:", colaLinks);
 
     const linkSanitized = linkFirebase.replace(/"/g, "&quot;");
 
