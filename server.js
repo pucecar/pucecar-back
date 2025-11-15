@@ -1,3 +1,4 @@
+@@ -1,207 +1,207 @@
 // server.js
 // ======================================================
 // MANEJO DE ERRORES GLOBALES PARA RENDER
@@ -20,12 +21,18 @@ const fs = require("fs-extra");
 const path = require("path");
 const { obtenerUltimoOobCodePorEmail } = require("./gmail");
 
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 app.use(bodyParser.json());
 
+// ======================================================
+// DIRECTORIO Y ARCHIVO JSON
+// ======================================================
 const DATA_DIR = path.join(__dirname, "data");
 const DATA_PATH = path.join(DATA_DIR, "usuarios.json");
 
@@ -35,59 +42,66 @@ fs.ensureFileSync(DATA_PATH);
 // Inicializar archivo si está vacío o no es array
 try {
   const contenido = fs.readJsonSync(DATA_PATH, { throws: false });
-  if (!Array.isArray(contenido)) fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
+  if (!Array.isArray(contenido)) {
+    console.log("Archivo JSON no es array, reinicializando...");
+    fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
+  }
 } catch (err) {
   console.error("Error al inicializar usuarios.json:", err);
   fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
 }
 
 // ======================================================
-// POST /registro
+// RUTAS
 // ======================================================
+
+// POST /registro
 app.post("/registro", async (req, res) => {
   try {
+    console.log("==> NUEVO REGISTRO DESDE APP:", req.body);
+
     const { uid, nombre, apellido, email } = req.body;
-    if (!uid || !email) return res.status(400).json({ ok: false, mensaje: "Faltan parámetros obligatorios" });
+    if (!uid || !email) {
+      return res
+        .status(400)
+        .json({ ok: false, mensaje: "Faltan parámetros obligatorios" });
+    }
 
     let usuarios = await fs.readJson(DATA_PATH);
 
+    // Verificar si ya existe usuario por uid o email
     let usuario = usuarios.find(u => u.uid === uid || u.email === email);
 
     if (!usuario) {
+      // Nuevo usuario
       usuario = { uid, nombre, apellido, email, oobCode: null };
       usuarios.push(usuario);
+      await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
     }
 
-    // Guardar antes de obtener oobCode para evitar race conditions
-    await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
-
-    // Obtener último oobCode de Firebase
+    // Obtener último oobCode del correo y actualizar
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
-      if (oobCode) {
-        const index = usuarios.findIndex(u => u.uid === usuario.uid);
-        if (index >= 0) {
-          usuarios[index].oobCode = oobCode;
-          usuario.oobCode = oobCode;
-          await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
-        }
+      console.log(`OOB CODE obtenido para ${email}:`, oobCode);
+      console.log("=== Antes de obtener OOB CODE ===");
+      console.log("Usuarios actuales:", usuarios);
+      console.log("Email a buscar:", email);
+      console.log(`OOB CODE obtenido para ${email}:`, oobCode);
+
+      const index = usuarios.findIndex(u => u.uid === usuario.uid);
+      if (index >= 0 && oobCode) {
+        usuarios[index].oobCode = oobCode;
+        await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
+        usuario.oobCode = oobCode;
       }
     } catch (err) {
       console.error(`No se pudo obtener oobCode para ${email}:`, err.message);
     }
 
-    // Responder con usuario y link directo
-    const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-    const linkFirebase = usuario.oobCode
-      ? `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
-        `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`
-      : "#";
-
     return res.json({
       ok: true,
       mensaje: "Usuario registrado correctamente",
       usuario,
-      linkFirebase
     });
   } catch (error) {
     console.error("Error en POST /registro:", error);
@@ -95,9 +109,7 @@ app.post("/registro", async (req, res) => {
   }
 });
 
-// ======================================================
 // GET /usuarios
-// ======================================================
 app.get("/usuarios", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
@@ -108,64 +120,28 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
-// ======================================================
-// GET /validar (recibe token desde OneDrive)
-// ======================================================
-app.get("/validar", async (req, res) => {
-  const { token } = req.query;
-  if (!token) return res.status(400).send("Token inválido");
-  const { token } = req.query; // usamos "token" para que coincida con el link de OneDrive
-  if (!token) return res.status(400).send("Código inválido");
-
-  let usuarios = await fs.readJson(DATA_PATH);
-  const usuarioIndex = usuarios.findIndex(u => u.oobCode === token);
-  let data = await fs.readJson(DATA_PATH);
-  let usuariosArray = data.usuarios || [];
-
-  const usuarioIndex = usuariosArray.findIndex(u => u.oobCode === token);
-  if (usuarioIndex === -1) return res.status(400).send("Usuario no encontrado");
-
-  usuarios[usuarioIndex].verificado = true;
-  await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
-
-  // Generar link de verificación de Firebase
-  const usuario = usuarios[usuarioIndex];
-  const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-  const linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
-                       `oobCode=${encodeURIComponent(token)}&apiKey=${API_KEY}&lang=es-419`;
-
-  // Mostrar botón al usuario para completar verificación
-  res.send(`
-    <p>Hola ${usuario.nombre}, tu correo ha sido verificado.</p>
-    <button onclick="window.location.href='${linkFirebase}'">
-      Completar verificación en Firebase
-    </button>
-  `);
-  usuariosArray[usuarioIndex].verificado = true;
-
-  // Guardar de nuevo en el objeto completo
-  data.usuarios = usuariosArray;
-  await fs.writeJson(DATA_PATH, data, { spaces: 2 });
-
-  res.send("<p>Correo verificado correctamente. Puedes cerrar esta ventana.</p>");
-});
-
-// ======================================================
 // GET / (Página principal con link de verificación)
-// ======================================================
+// Ahora recibe query ?uid=xxxx o ?email=xxxx para mostrar solo su link
 app.get("/", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
-    const { email } = req.query;
+    const { uid, email } = req.query;
 
-    const usuario = email ? usuarios.find(u => u.email === email) : null;
+    const usuario = uid
+      ? usuarios.find(u => u.uid === uid)
+      : email
+      ? usuarios.find(u => u.email === email)
+      : null;
 
     let linkFirebase = "#";
+
     if (usuario && usuario.oobCode) {
       const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
       linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
         `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
     }
+
+    console.log("LINK FINAL GENERADO:", linkFirebase);
 
     const linkSanitized = linkFirebase.replace(/"/g, "&quot;");
 
