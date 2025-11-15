@@ -15,195 +15,108 @@ process.on("unhandledRejection", (reason) => {
 // IMPORTACIONES
 // ======================================================
 const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = require("path");
-const { obtenerUltimoOobCodePorEmail } = require("./gmail");
+const cors = require("cors");
 
-// ======================================================
-// CONFIGURACIÓN
-// ======================================================
 const app = express();
-const PORT = process.env.PORT || 10000;
-
+app.use(express.json());
 app.use(cors());
-app.use(bodyParser.json());
 
-// ======================================================
-// DIRECTORIO Y ARCHIVO JSON
-// ======================================================
-const DATA_DIR = path.join(__dirname, "data");
-const DATA_PATH = path.join(DATA_DIR, "usuarios.json");
+// RUTAS A ARCHIVOS
+const USERS_PATH = path.join(__dirname, "usuarios.json");
+const LINKS_PATH = path.join(__dirname, "colaLinks.json");
 
-fs.ensureDirSync(DATA_DIR);
-fs.ensureFileSync(DATA_PATH);
-
-// Inicializar archivo si está vacío o no es array
-try {
-  const contenido = fs.readJsonSync(DATA_PATH, { throws: false });
-  if (!Array.isArray(contenido)) {
-    console.log("Archivo JSON no es array, reinicializando...");
-    fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
-  }
-} catch (err) {
-  console.error("Error al inicializar usuarios.json:", err);
-  fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
+// CARGAR ARCHIVOS (si no existen, crearlos)
+function loadJSON(file, empty) {
+  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(empty));
+  return JSON.parse(fs.readFileSync(file));
 }
 
-// ======================================================
-// RUTAS
-// ======================================================
+function saveJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
 
-// POST /registro
+// CARGAR COLAS
+let usuariosCola = loadJSON(USERS_PATH, []);
+let linksCola = loadJSON(LINKS_PATH, []);
+
+// LOGS ACTUALES
+function mostrarColas() {
+  console.log("===== ESTADO ACTUAL =====");
+  console.log("COLA DE USUARIOS:");
+  console.log(usuariosCola);
+  console.log("COLA DE LINKS:");
+  console.log(linksCola);
+  console.log("==========================");
+}
+
+// ==================================================
+//  ENDPOINT /registro  (EL QUE FALLABA) 🔥
+// ==================================================
 app.post("/registro", async (req, res) => {
   try {
-    console.log("==> NUEVO REGISTRO DESDE APP:", req.body);
+    const usuario = req.body;
 
-    const { uid, nombre, apellido, email } = req.body;
-    if (!uid || !email) {
-      return res
-        .status(400)
-        .json({ ok: false, mensaje: "Faltan parámetros obligatorios" });
+    // GUARDAR USUARIO EN COLA
+    usuariosCola.push(usuario);
+    saveJSON(USERS_PATH, usuariosCola);
+
+    console.log("Nuevo usuario recibido");
+    mostrarColas();
+
+    // 👇 ESTA ES LA RESPUESTA EXACTA QUE USABA TU SERVER VIEJO
+    return res.status(200).json({
+      estado: "ok",
+      mensaje: "Usuario registrado correctamente",
+      datos: usuario
+    });
+
+  } catch (error) {
+    console.error("Error en /registro:", error);
+
+    return res.status(500).json({
+      estado: "error",
+      mensaje: "No se pudo procesar el registro"
+    });
+  }
+});
+
+// ==================================================
+//  ENDPOINT /validar PARA ENTREGAR LINK UNICO
+// ==================================================
+app.get("/validar", (req, res) => {
+  try {
+    if (linksCola.length === 0) {
+      return res.status(404).json({
+        estado: "error",
+        mensaje: "No hay links disponibles"
+      });
     }
 
-    let usuarios = await fs.readJson(DATA_PATH);
+    const link = linksCola.shift();
+    saveJSON(LINKS_PATH, linksCola);
 
-    // Verificar si ya existe usuario por uid o email
-    let usuario = usuarios.find(u => u.uid === uid || u.email === email);
-
-    if (!usuario) {
-      // Nuevo usuario
-      usuario = { uid, nombre, apellido, email, oobCode: null };
-      usuarios.push(usuario);
-      await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
-    }
-
-    // Obtener último oobCode del correo y actualizar
-    try {
-      const oobCode = await obtenerUltimoOobCodePorEmail(email);
-      console.log(`OOB CODE obtenido para ${email}:`, oobCode);
-      console.log("=== Antes de obtener OOB CODE ===");
-      console.log("Usuarios actuales:", usuarios);
-      console.log("Email a buscar:", email);
-      console.log(`OOB CODE obtenido para ${email}:`, oobCode);
-
-      const index = usuarios.findIndex(u => u.uid === usuario.uid);
-      if (index >= 0 && oobCode) {
-        usuarios[index].oobCode = oobCode;
-        await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
-        usuario.oobCode = oobCode;
-      }
-    } catch (err) {
-      console.error(`No se pudo obtener oobCode para ${email}:`, err.message);
-    }
+    mostrarColas();
 
     return res.json({
-      ok: true,
-      mensaje: "Usuario registrado correctamente",
-      usuario,
+      estado: "ok",
+      link
     });
+
   } catch (error) {
-    console.error("Error en POST /registro:", error);
-    res.status(500).json({ ok: false, mensaje: "Error interno del servidor" });
+    console.error("Error en /validar:", error);
+    return res.status(500).json({
+      estado: "error",
+      mensaje: "Fallo interno"
+    });
   }
 });
 
-// GET /usuarios
-app.get("/usuarios", async (req, res) => {
-  try {
-    const usuarios = await fs.readJson(DATA_PATH);
-    res.json({ ok: true, usuarios });
-  } catch (error) {
-    console.error("Error en GET /usuarios:", error);
-    res.status(500).json({ ok: false, mensaje: "Error al leer los usuarios" });
-  }
+// ==================================================
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log("Servidor iniciado en puerto " + PORT);
+  mostrarColas();
 });
 
-// GET / (Página principal con link de verificación)
-// Ahora recibe query ?uid=xxxx o ?email=xxxx para mostrar solo su link
-app.get("/", async (req, res) => {
-  try {
-    const usuarios = await fs.readJson(DATA_PATH);
-    const { uid, email } = req.query;
-
-    const usuario = uid
-      ? usuarios.find(u => u.uid === uid)
-      : email
-      ? usuarios.find(u => u.email === email)
-      : null;
-
-    let linkFirebase = "#";
-
-    if (usuario && usuario.oobCode) {
-      const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-      linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
-        `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
-    }
-
-    console.log("LINK FINAL GENERADO:", linkFirebase);
-
-    const linkSanitized = linkFirebase.replace(/"/g, "&quot;");
-
-    const html = `
-      <!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8">
-        <title>Verificación PUCECar</title>
-        <style>
-          body { display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background: #eef2f5; }
-          .card { background: white; padding: 32px; width: 380px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); text-align: center; }
-          button { padding: 12px 20px; font-size: 16px; background: #0077ff; color: white; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
-          button:hover { background: #005fd1; }
-          h1 { margin-bottom: 12px; }
-          p { font-size: 17px; }
-          .debug { font-size: 12px; margin-top: 20px; color: #777; word-break: break-all; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h1>Verificación de correo</h1>
-          ${
-            usuario
-              ? `
-            <p><strong>Usuario:</strong><br>${usuario.nombre} ${usuario.apellido}<br>${usuario.email}</p>
-            <button id="verificarBtn">Verificar correo</button>
-            <div class="debug">
-              <b>DEBUG LINK:</b><br>${linkSanitized}
-            </div>
-            <script>
-              const linkFirebase = "${linkSanitized}";
-              document.getElementById("verificarBtn").addEventListener("click", () => {
-                if (linkFirebase === "#") {
-                  alert("No se encontró el link de verificación aún.");
-                } else {
-                  window.location.href = linkFirebase;
-                }
-              });
-            </script>
-          `
-              : "<p>No se encontró usuario.</p>"
-          }
-        </div>
-      </body>
-      </html>
-    `;
-
-    res.send(html);
-  } catch (error) {
-    console.error("Error en GET /:", error);
-    res.status(500).send("<p>Error al cargar la página</p>");
-  }
-});
-
-// ======================================================
-// INICIAR SERVIDOR
-// ======================================================
-app.listen(PORT, (err) => {
-  if (err) {
-    console.error("Error al iniciar servidor:", err);
-    process.exit(1);
-  }
-  console.log(`Servidor iniciado en puerto ${PORT}`);
-});
