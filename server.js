@@ -120,10 +120,6 @@ app.get("/links", (req, res) => {
 // ======================================================
 // PÁGINA PRINCIPAL: muestra link de Firebase
 // ======================================================
-// Colas en memoria
-const colaUsuarios = [];
-const colaLinks = [];
-
 app.get("/", async (req, res) => {
   try {
     const usuarios = await fs.readJson(DATA_PATH);
