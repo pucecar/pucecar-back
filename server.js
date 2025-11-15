@@ -1,10 +1,18 @@
 // server.js
 // ======================================================
-// IMPORTACIONES Y CONFIG
+// MANEJO DE ERRORES GLOBALES PARA RENDER
 // ======================================================
-process.on("uncaughtException", (err) => console.error("Uncaught Exception:", err));
-process.on("unhandledRejection", (reason) => console.error("Unhandled Rejection:", reason));
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
 
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
+});
+
+// ======================================================
+// IMPORTACIONES
+// ======================================================
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -12,6 +20,9 @@ const fs = require("fs-extra");
 const path = require("path");
 const { obtenerUltimoOobCodePorEmail } = require("./gmail");
 
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -19,7 +30,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 // ======================================================
-// ARCHIVO PERSISTENTE
+// DIRECTORIO Y ARCHIVO JSON
 // ======================================================
 const DATA_DIR = path.join(__dirname, "data");
 const DATA_PATH = path.join(DATA_DIR, "usuarios.json");
@@ -27,136 +38,170 @@ const DATA_PATH = path.join(DATA_DIR, "usuarios.json");
 fs.ensureDirSync(DATA_DIR);
 fs.ensureFileSync(DATA_PATH);
 
-let data = fs.readJsonSync(DATA_PATH, { throws: false }) || {};
-
-if (!Array.isArray(data.usuarios)) data.usuarios = [];
-if (!Array.isArray(data.colaUsuarios)) data.colaUsuarios = [];
-if (!Array.isArray(data.colaLinks)) data.colaLinks = [];
-
-fs.writeJsonSync(DATA_PATH, data, { spaces: 2 });
-
-function guardar() {
-  fs.writeJsonSync(DATA_PATH, data, { spaces: 2 });
-}
-
-function logColas() {
-  console.log("\n===== ESTADO ACTUAL =====");
-  console.log("COLA DE USUARIOS:", JSON.stringify(data.colaUsuarios, null, 2));
-  console.log("COLA DE LINKS:", JSON.stringify(data.colaLinks, null, 2));
-  console.log("==========================\n");
+// Inicializar archivo si está vacío o no es array
+try {
+  const contenido = fs.readJsonSync(DATA_PATH, { throws: false });
+  if (!Array.isArray(contenido)) {
+    console.log("Archivo JSON no es array, reinicializando...");
+    fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
+  }
+} catch (err) {
+  console.error("Error al inicializar usuarios.json:", err);
+  fs.writeJsonSync(DATA_PATH, [], { spaces: 2 });
 }
 
 // ======================================================
-// POST /registro  (RESPONDE IGUAL QUE EL SERVER VIEJO)
+// RUTAS
 // ======================================================
+
+// POST /registro
 app.post("/registro", async (req, res) => {
-  console.log("\n=== NUEVO REGISTRO RECIBIDO ===");
-  console.log(req.body);
-
   try {
+    console.log("==> NUEVO REGISTRO DESDE APP:", req.body);
+
     const { uid, nombre, apellido, email } = req.body;
-
     if (!uid || !email) {
-      return res.status(400).json({
-        ok: false,
-        mensaje: "Faltan parámetros obligatorios"
-      });
+      return res
+        .status(400)
+        .json({ ok: false, mensaje: "Faltan parámetros obligatorios" });
     }
 
-    // Buscar usuario existente
-    let usuario = data.usuarios.find(u => u.email === email);
+    let usuarios = await fs.readJson(DATA_PATH);
 
-    // Si no existe → crear
+    // Verificar si ya existe usuario por uid o email
+    let usuario = usuarios.find(u => u.uid === uid || u.email === email);
+
     if (!usuario) {
+      // Nuevo usuario
       usuario = { uid, nombre, apellido, email, oobCode: null };
-      data.usuarios.push(usuario);
-
-      // Añadir a cola de proceso
-      data.colaUsuarios.push({ uid, email });
-      console.log("Usuario agregado a colaUsuarios.");
+      usuarios.push(usuario);
+      await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
     }
 
-    guardar();
-    logColas();
-
-    // ------------------------------------------------------
-    // RESPUESTA EXACTA COMO EL SERVER ANTERIOR
-    // ------------------------------------------------------
-    res.json({
-      ok: true,
-      mensaje: "Usuario registrado correctamente",
-      usuario
-    });
-
-    // ------------------------------------------------------
-    // PROCESO ASÍNCRONO DESPUÉS DE RESPONDER A LA APP
-    // ------------------------------------------------------
+    // Obtener último oobCode del correo y actualizar
     try {
       const oobCode = await obtenerUltimoOobCodePorEmail(email);
+      console.log(`OOB CODE obtenido para ${email}:`, oobCode);
+      console.log("=== Antes de obtener OOB CODE ===");
+      console.log("Usuarios actuales:", usuarios);
+      console.log("Email a buscar:", email);
 
-      if (oobCode) {
+      const index = usuarios.findIndex(u => u.uid === usuario.uid);
+      if (index >= 0 && oobCode) {
+        usuarios[index].oobCode = oobCode;
+        await fs.writeJson(DATA_PATH, usuarios, { spaces: 2 });
         usuario.oobCode = oobCode;
-
-        const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
-        const link = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
-                     `oobCode=${encodeURIComponent(oobCode)}&apiKey=${API_KEY}&lang=es-419`;
-
-        data.colaLinks.push({ email, oobCode, link });
-
-        console.log("Nuevo link agregado a colaLinks:", link);
       }
-
-      guardar();
-      logColas();
-
     } catch (err) {
-      console.error("ERROR obteniendo OOB CODE:", err.message);
+      console.error(`No se pudo obtener oobCode para ${email}:`, err.message);
     }
 
+    return res.json({
+      ok: true,
+      mensaje: "Usuario registrado correctamente",
+      usuario,
+    });
   } catch (error) {
-    console.error("ERROR en /registro:", error);
-    return res.status(500).json({ ok: false, mensaje: "Error interno" });
+    console.error("Error en POST /registro:", error);
+    res.status(500).json({ ok: false, mensaje: "Error interno del servidor" });
   }
 });
 
-// ======================================================
-// GET /
-// ======================================================
-app.get("/", (req, res) => {
-  let link = null;
-
-  if (data.colaLinks.length > 0) {
-    const obj = data.colaLinks.shift();
-    link = obj.link;
-    guardar();
-    console.log("Link entregado:", link);
-  }
-
-  const html = `
-    <!DOCTYPE html><html><body style="font-family:Arial;text-align:center;padding:50px;">
-      <h1>Verificación PUCECar</h1>
-      ${
-        link
-          ? `<a href="${link}"><button>Verificar correo</button></a>`
-          : `<p>No hay links disponibles.</p>`
-      }
-    </body></html>
-  `;
-
-  res.send(html);
-});
-
-// ======================================================
 // GET /usuarios
-// ======================================================
-app.get("/usuarios", (req, res) => {
-  res.json({ ok: true, usuarios: data.usuarios });
+app.get("/usuarios", async (req, res) => {
+  try {
+    const usuarios = await fs.readJson(DATA_PATH);
+    res.json({ ok: true, usuarios });
+  } catch (error) {
+    console.error("Error en GET /usuarios:", error);
+    res.status(500).json({ ok: false, mensaje: "Error al leer los usuarios" });
+  }
+});
+
+// GET / (Página principal con link de verificación)
+// Ahora recibe query ?uid=xxxx o ?email=xxxx para mostrar solo su link
+app.get("/", async (req, res) => {
+  try {
+    const usuarios = await fs.readJson(DATA_PATH);
+    const { uid, email } = req.query;
+
+    const usuario = uid
+      ? usuarios.find(u => u.uid === uid)
+      : email
+      ? usuarios.find(u => u.email === email)
+      : null;
+
+    let linkFirebase = "#";
+
+    if (usuario && usuario.oobCode) {
+      const API_KEY = "AIzaSyDTEcMQgFHR9KwZGbi0RaN_XBwnDDs7ikI";
+      linkFirebase = `https://pucecar-ff3e3.firebaseapp.com/__/auth/action?mode=verifyEmail&` +
+        `oobCode=${encodeURIComponent(usuario.oobCode)}&apiKey=${API_KEY}&lang=es-419`;
+    }
+
+    console.log("LINK FINAL GENERADO:", linkFirebase);
+
+    const linkSanitized = linkFirebase.replace(/"/g, "&quot;");
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Verificación PUCECar</title>
+        <style>
+          body { display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial, sans-serif; background: #eef2f5; }
+          .card { background: white; padding: 32px; width: 380px; border-radius: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.15); text-align: center; }
+          button { padding: 12px 20px; font-size: 16px; background: #0077ff; color: white; border-radius: 8px; border: none; cursor: pointer; width: 100%; }
+          button:hover { background: #005fd1; }
+          h1 { margin-bottom: 12px; }
+          p { font-size: 17px; }
+          .debug { font-size: 12px; margin-top: 20px; color: #777; word-break: break-all; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h1>Verificación de correo</h1>
+          ${
+            usuario
+              ? `
+            <p><strong>Usuario:</strong><br>${usuario.nombre} ${usuario.apellido}<br>${usuario.email}</p>
+            <button id="verificarBtn">Verificar correo</button>
+            <div class="debug">
+              <b>DEBUG LINK:</b><br>${linkSanitized}
+            </div>
+            <script>
+              const linkFirebase = "${linkSanitized}";
+              document.getElementById("verificarBtn").addEventListener("click", () => {
+                if (linkFirebase === "#") {
+                  alert("No se encontró el link de verificación aún.");
+                } else {
+                  window.location.href = linkFirebase;
+                }
+              });
+            </script>
+          `
+              : "<p>No se encontró usuario.</p>"
+          }
+        </div>
+      </body>
+      </html>
+    `;
+
+    res.send(html);
+  } catch (error) {
+    console.error("Error en GET /:", error);
+    res.status(500).send("<p>Error al cargar la página</p>");
+  }
 });
 
 // ======================================================
-// INICIO
+// INICIAR SERVIDOR
 // ======================================================
-app.listen(PORT, () => {
+app.listen(PORT, (err) => {
+  if (err) {
+    console.error("Error al iniciar servidor:", err);
+    process.exit(1);
+  }
   console.log(`Servidor iniciado en puerto ${PORT}`);
-  logColas();
 });
