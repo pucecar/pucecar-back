@@ -66,7 +66,7 @@ app.post("/registro", async (req, res) => {
 
     // Agregar a colaUsuarios
     if (!colaUsuarios.find(u => u.uid === uid)) colaUsuarios.push(usuario);
-    console.log("🟢 Cola Usuarios:", colaUsuarios.map(u => u.email));
+    console.log("Cola Usuarios:", colaUsuarios.map(u => u.email));
 
     // Obtener oobCode y generar link
     try {
@@ -82,14 +82,14 @@ app.post("/registro", async (req, res) => {
 
         // Guardar en colaLinks
         if (!colaLinks.includes(linkFirebase)) colaLinks.push(linkFirebase);
-        console.log("🔵 Cola Links:", colaLinks);
+        console.log("Cola Links:", colaLinks);
       }
     } catch (err) {
       console.error("⚠️ No se pudo obtener oobCode:", err.message);
     }
 
     // RESPUESTA FINAL: importante que espere oobCode
-    res.json({ ok: true, mensaje: "Usuario registrado correctamente", usuario });
+    res.json({ estado: "ok", mensaje: "Usuario registrado correctamente", usuario });
 
   } catch (error) {
     console.error("Error en POST /registro:", error);
