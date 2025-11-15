@@ -79,11 +79,12 @@ app.post("/registro", async (req, res) => {
     // ------------------------------------------------------------------
     // RESPUESTA INMEDIATA A TU APP (COMO ANTES)
     // ------------------------------------------------------------------
-    res.json({
-      ok: true,
-      mensaje: "Usuario recibido. Procesando verificación.",
-      usuario
-    });
+    // RESPUESTA INMEDIATA A TU APP (IGUAL AL SERVER ANTERIOR)
+      res.json({
+        ok: true,
+        mensaje: "Usuario registrado correctamente",
+        usuario
+      });
 
     // ------------------------------------------------------------------
     // PROCESO ASÍNCRONO (NO BLOQUEA RESPUESTA)
