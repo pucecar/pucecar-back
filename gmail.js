@@ -33,7 +33,7 @@ function generarLinkFirebaseDesdeCuerpo(bodies) {
 const config = {
   imap: {
     user: 'pucecarmail1@gmail.com',
-    password: 'pwbz swnq jcwm aixv',
+    password: 'ugdj jlhq smup wbgh',
     host: 'imap.gmail.com',
     port: 993,
     tls: true,
