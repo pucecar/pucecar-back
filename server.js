@@ -253,17 +253,15 @@ function generarHTML(usuario, linkFirebase) {
     </head>
     <body>
       <div class="container">
-        <h1>🔐 Verificación de Email - PUCECar</h1>
+        <h1>Verificación de Email - PUCECar</h1>
         
         ${usuario ? `
           <div class="info">
-            <p><strong>Usuario:</strong> ${usuario.nombre} ${usuario.apellido}</p>
-            <p><strong>Email:</strong> ${usuario.email}</p>
             <p><strong>Estado:</strong> <span style="color: green;">✓ Listo para verificar</span></p>
           </div>
           
           <button class="btn" onclick="window.location.href='${linkSanitized}'">
-            ✅ Verificar Correo Electrónico
+            Verificar Correo Electrónico
           </button>
           
           <div class="debug">
@@ -271,23 +269,14 @@ function generarHTML(usuario, linkFirebase) {
             <small>${linkSanitized}</small>
           </div>
         ` : `
-          <div class="info">
-            <p>🕒 Esperando usuarios para verificación...</p>
-            <p>Los usuarios se procesan automáticamente en segundo plano.</p>
-          </div>
           <button class="btn" onclick="location.reload()">
-            🔄 Recargar Página
+            Recargar Página
           </button>
         `}
-        
-        <div class="stats">
-          <p><strong>Estado del sistema:</strong></p>
-          <p>📊 Pendientes: ${colas.pendientes.length} | Procesando: ${colas.procesando.length} | Completados: ${colas.completados.length}</p>
-          <p>💾 Cache: ${emailCache.size} emails</p>
-        </div>
+          
         
         <p style="margin-top: 20px; font-size: 12px; color: #888;">
-          Esta página se actualiza automáticamente cada 30 segundos.
+          Gracias por elegir a PUCECAR
         </p>
         
         <script>
